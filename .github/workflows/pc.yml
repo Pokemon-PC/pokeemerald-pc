@@ -1,0 +1,77 @@
+# Native PC build (src/platform_pc): tools, game data, executable, ctest.
+# The GBA ROM build stays in build.yml; check_gba_sources.py proves the PC
+# changes leave the GBA sources untouched.
+name: PC port
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0     # check_gba_sources.py compares with the first commit
+      - name: Packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang ninja-build cmake python3 binutils make \
+            libasound2-dev libpulse-dev libx11-dev libxext-dev libgl-dev
+      - name: GBA sources unchanged
+        run: python3 src/platform_pc/scripts/check_gba_sources.py
+      - name: Decomp tools
+        run: |
+          cmake -S src/platform_pc/tools -B build-tools -G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+          cmake --build build-tools
+      - name: Game data
+        run: python3 src/platform_pc/scripts/gen_assets.py -j 4
+      - name: Game
+        run: |
+          cmake -B build-pc -G Ninja -DCMAKE_C_COMPILER=clang
+          cmake --build build-pc
+      - name: Tests
+        run: cd build-pc && ctest --output-on-failure
+      - name: Package
+        run: python3 src/platform_pc/scripts/package.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pokeemerald-pc-linux
+          path: dist/*.zip
+
+  windows:
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          install: >-
+            mingw-w64-x86_64-clang mingw-w64-x86_64-lld mingw-w64-x86_64-binutils
+            mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja mingw-w64-x86_64-python make
+      - name: GBA sources unchanged
+        run: python src/platform_pc/scripts/check_gba_sources.py
+      - name: Decomp tools
+        run: |
+          cmake -S src/platform_pc/tools -B build-tools -G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+          cmake --build build-tools
+      - name: Game data
+        run: python src/platform_pc/scripts/gen_assets.py -j 4
+      - name: Game
+        run: |
+          cmake -B build-pc -G Ninja -DCMAKE_C_COMPILER=clang
+          cmake --build build-pc
+      - name: Tests
+        run: cd build-pc && ctest --output-on-failure
+      - name: Package
+        run: python src/platform_pc/scripts/package.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pokeemerald-pc-windows
+          path: dist/*.zip

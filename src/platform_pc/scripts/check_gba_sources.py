@@ -111,6 +111,11 @@ def main():
         except FileNotFoundError:
             bad.append(("deleted", rel))
             continue
+        if subprocess.run(["git", "cat-file", "-e", f"{base}:{rel}"], capture_output=True).returncode != 0:
+            # New file: harmless unless it is a source the GBA build could pick up.
+            if rel.endswith(SOURCE_EXT):
+                bad.append(("added", rel))
+            continue
         orig = git("show", f"{base}:{rel}")
         if rel == "Makefile":
             # Make syntax: only '#' comments ('/*' is a glob here).

@@ -45,7 +45,7 @@ Audit détaillé : [docs/PORTING_API_AUDIT.md](docs/PORTING_API_AUDIT.md).
 | M4 2D | BG texte/affine, OAM, fenêtres, mélange, mosaïque, H-Blank/DMA H-Blank | intro + titre + monde affichés justes | ✅ (mosaïque à faire) |
 | M5 Son | mixeur m4a en C + canaux PSG | musique de l'intro juste | ✅ (écoute à confirmer) |
 | M6 Jeu & finitions | parties scriptées, bugs 64 bits, config, paquet | systèmes principaux testés en jeu | ✅ (mosaïque à faire) |
-| M7 Multiplateforme | Linux/macOS, CI, vérification matching | CI verte 3 OS | ☐ |
+| M7 Multiplateforme | Linux/macOS, CI, vérification matching | CI verte 3 OS | ⏳ (Linux ✅ 5/5 ; CI écrite, pas exécutée ; macOS non testé) |
 
 ## À faire par l'utilisateur (le moment venu)
 
@@ -220,3 +220,21 @@ Audit détaillé : [docs/PORTING_API_AUDIT.md](docs/PORTING_API_AUDIT.md).
     vérifie chambre de la rivale, route 101, labo et 6 captures. `ctest` : 5/5.
   - `check_gba_sources.py` : `README_PC.md` ajouté aux fichiers PC-only.
   - Reste : mosaïque (M4) ; M7 : Linux/macOS (dont l'émulation NULL), CI.
+- **2026-11-24 — M7 (Linux)** : le jeu se construit et passe **5/5 tests sous Linux** (WSL Ubuntu,
+  Clang 21, GNU ld), images de l'histoire **identiques octet pour octet** à Windows.
+  - `crash_pc.c` POSIX : émulation des accès NULL depuis le `ucontext` (Linux et macOS x86-64 ;
+    erreur d'écriture lue dans `REG_ERR`), pile de signal dédiée, chien de garde (fil POSIX qui
+    interroge le fil du jeu par `SIGUSR2`), pile du point de plantage. Points d'arrêt matériel
+    (`PEM_WATCH`) : Windows seulement. Autotest des accès NULL actif sous Linux.
+  - Bug du jeu d'origine révélé par Linux : `CopySaveSlotData` lit `locations[0xFFFF]` sur un
+    secteur de flash effacé (inoffensif sur GBA, juste après l'image sous Windows, hors mémoire
+    sous Linux) → borne sous `PLATFORM_PC` dans `save.c`.
+  - Construction : cycle `pem_hal` ↔ `pem_hal_game` déclaré (ld.bfd est sensible à l'ordre) ;
+    alias `ZLIB::ZLIB` seulement s'il n'existe pas (outils) ; `_GNU_SOURCE` pour `REG_*`.
+  - macOS : bornes de la section des variables en Mach-O (`section$start$__DATA$__pemgame`)
+    écrites, **non testées** (pas de Mac) ; l'assembleur GNU ne produit pas de Mach-O, les
+    données `.s` y poseront problème.
+  - CI `.github/workflows/pc.yml` (Linux + Windows/MSYS2 : vérification GBA, outils, données,
+    jeu, ctest, paquet) : écrite, **pas exécutée** (dépôt sans remote GitHub).
+  - `check_gba_sources.py` : un fichier ajouté n'est signalé que s'il est une source GBA.
+  - Reste M7 : exécuter la CI, macOS ; la fenêtre et le son sous Linux (WSLg) à essayer à la main.

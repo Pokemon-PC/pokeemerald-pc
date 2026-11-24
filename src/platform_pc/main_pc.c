@@ -33,7 +33,12 @@ __attribute__((section(".data$pem2"), used)) static char s_game_end[16];
 #define GAME_DATA_BEGIN ((char *)(s_game_begin + sizeof s_game_begin))
 #define GAME_DATA_END   ((char *)s_game_end)
 #elif defined(__APPLE__)
-#error "macOS: section bounds not implemented yet (see the HGSS port, 02 section 7)"
+/* Mach-O: ld64 gives the bounds of any section as section$start/end$SEG$SECT. */
+extern char s_pem_game_start[] __asm("section$start$__DATA$__pemgame");
+extern char s_pem_game_end[] __asm("section$end$__DATA$__pemgame");
+__attribute__((section("__DATA,__pemgame"), used)) static char s_game_anchor = 1;
+#define GAME_DATA_BEGIN s_pem_game_start
+#define GAME_DATA_END   s_pem_game_end
 #else
 /* The linker defines __start_/__stop_ for sections named like C identifiers. */
 extern char __start_pem_game[], __stop_pem_game[];

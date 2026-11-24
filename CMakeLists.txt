@@ -87,6 +87,9 @@ add_library(pem_hal_game STATIC
     ${PEM_PC_DIR}/flash_pc.c
     ${PEM_PC_DIR}/rtc_pc.c)
 target_link_libraries(pem_hal_game PUBLIC pem_hal PRIVATE pem_game_flags)
+# pem_hal calls back into it (pc_flash_flush on crash, at VBlank): a cycle of
+# static libraries, which CMake repeats on the link line for GNU ld.
+target_link_libraries(pem_hal INTERFACE pem_hal_game)
 
 # --- the game ---------------------------------------------------------
 include(cmake/PemGame.cmake)

@@ -342,7 +342,7 @@ static int __attribute__((noinline)) null_read_cmp(volatile struct FarFields *p)
 }
 
 static void test_null_reads(void) {
-#if defined(_WIN32)
+#if defined(_WIN32) || (defined(__x86_64__) && (defined(__linux__) || defined(__APPLE__)))
     volatile struct FarFields *p = NULL;
     u8 b = p->b;
     u16 h = p->h;
@@ -357,7 +357,7 @@ static void test_null_reads(void) {
     p->h++;                    /* read-modify-write */
     CHECK(p->b == 0 && p->w == 0 && p->h == 0, "writes through NULL are ignored");
 #else
-    printf("skip: NULL-read emulation is Windows-only for now\n");
+    printf("skip: NULL-read emulation needs x86-64\n");
 #endif
 }
 

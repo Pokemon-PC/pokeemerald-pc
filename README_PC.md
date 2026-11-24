@@ -15,6 +15,15 @@ Pas besoin de ROM : toutes les données du jeu sont dans ce dépôt.
 
 SDL2, zlib et libpng sont téléchargés et compilés automatiquement par CMake.
 
+## Prérequis (Linux)
+
+```
+sudo apt install clang cmake ninja-build python3 binutils make libasound2-dev libpulse-dev libx11-dev libxext-dev libgl-dev
+```
+
+Mêmes commandes de construction (avec `python3`) ; l'exe s'appelle `build-pc/pokeemerald`.
+macOS (Intel) est prévu dans le code mais pas encore testé.
+
 ## Construire
 
 ```

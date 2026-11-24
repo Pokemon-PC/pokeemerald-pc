@@ -6,6 +6,9 @@
  *     llvm-addr2line -f -e pokeemerald.exe 0x...
  * (tools/pc_port/symbolize_crash.py does that for a whole log).
  */
+#if !defined(_WIN32) && !defined(_GNU_SOURCE)
+#define _GNU_SOURCE   /* REG_RIP... in <ucontext.h> */
+#endif
 #include "pc_hal.h"
 #include "platform_pc.h"
 
@@ -228,53 +231,181 @@ void pc_crash_install(void) {
     }
 }
 #else
+#include <pthread.h>
 #include <signal.h>
+#include <stdint.h>
+#include <ucontext.h>
+#include <unistd.h>
 #if defined(__linux__) || defined(__APPLE__)
 #include <execinfo.h>
 #define PEM_HAVE_EXECINFO 1
 #endif
 
 /* Stack addresses are stable (non-PIE executable at 0x10000000): they can
- * be symbolized offline (tools/pc_port/symbolize_crash.py, llvm-symbolizer). */
-static void print_frames(const char *tag) {
+ * be symbolized offline (scripts/symbolize.py, llvm-symbolizer). The first
+ * line is the interrupted instruction, then the unwound callers. */
+static void print_frames(const char *tag, uintptr_t pc) {
+    if (pc != 0) {
+        fprintf(stderr, "[pem:%s]   #-- 0x%016llX\n", tag, (unsigned long long)pc);
+    }
 #ifdef PEM_HAVE_EXECINFO
-    void *frames[32];
-    int n = backtrace(frames, 32);
-    fprintf(stderr, "[pem:%s] backtrace:\n", tag);
+    void *frames[48];
+    int n = backtrace(frames, 48);
     for (int i = 0; i < n; i++) {
         fprintf(stderr, "[pem:%s]   #%02d %p\n", tag, i, frames[i]);
     }
-#else
-    (void)tag;
 #endif
+    fflush(stderr);
 }
 
+/* Registers of the interrupted thread, in x86 encoding order (rax, rcx, rdx,
+ * rbx, rsp, rbp, rsi, rdi, r8..r15), for the NULL-access emulator. */
+#if defined(__x86_64__) && defined(__linux__)
+#define PEM_CAN_EMULATE_NULL 1
+static uintptr_t ctx_pc(ucontext_t *uc) { return (uintptr_t)uc->uc_mcontext.gregs[REG_RIP]; }
+static bool ctx_fault_is_write(ucontext_t *uc) { return (uc->uc_mcontext.gregs[REG_ERR] & 2) != 0; }
+static void ctx_regs(ucontext_t *uc, uint64_t *regs[16], uint64_t **rip, uint64_t **flags) {
+    static const int order[16] = { REG_RAX, REG_RCX, REG_RDX, REG_RBX, REG_RSP, REG_RBP, REG_RSI, REG_RDI,
+                                   REG_R8, REG_R9, REG_R10, REG_R11, REG_R12, REG_R13, REG_R14, REG_R15 };
+    for (int i = 0; i < 16; i++) {
+        regs[i] = (uint64_t *)&uc->uc_mcontext.gregs[order[i]];
+    }
+    *rip = (uint64_t *)&uc->uc_mcontext.gregs[REG_RIP];
+    *flags = (uint64_t *)&uc->uc_mcontext.gregs[REG_EFL];
+}
+#elif defined(__x86_64__) && defined(__APPLE__)
+#define PEM_CAN_EMULATE_NULL 1
+static uintptr_t ctx_pc(ucontext_t *uc) { return (uintptr_t)uc->uc_mcontext->__ss.__rip; }
+static bool ctx_fault_is_write(ucontext_t *uc) { return (uc->uc_mcontext->__es.__err & 2) != 0; }
+static void ctx_regs(ucontext_t *uc, uint64_t *regs[16], uint64_t **rip, uint64_t **flags) {
+    _STRUCT_X86_THREAD_STATE64 *ss = &uc->uc_mcontext->__ss;
+    uint64_t *r[16] = { &ss->__rax, &ss->__rcx, &ss->__rdx, &ss->__rbx, &ss->__rsp, &ss->__rbp, &ss->__rsi,
+                        &ss->__rdi, &ss->__r8, &ss->__r9, &ss->__r10, &ss->__r11, &ss->__r12, &ss->__r13,
+                        &ss->__r14, &ss->__r15 };
+    memcpy(regs, r, sizeof r);
+    *rip = &ss->__rip;
+    *flags = &ss->__rflags;
+}
+#elif defined(__linux__) && defined(__aarch64__)
+static uintptr_t ctx_pc(ucontext_t *uc) { return (uintptr_t)uc->uc_mcontext.pc; }
+#elif defined(__APPLE__) && defined(__aarch64__)
+static uintptr_t ctx_pc(ucontext_t *uc) { return (uintptr_t)uc->uc_mcontext->__ss.__pc; }
+#else
+static uintptr_t ctx_pc(ucontext_t *uc) { (void)uc; return 0; }
+#endif
+
+#ifdef PEM_CAN_EMULATE_NULL
+static void note_null_read(uintptr_t pc, uintptr_t addr, bool is_write) {
+    static uintptr_t seen[64];
+    static int nseen;
+    for (int i = 0; i < nseen; i++) {
+        if (seen[i] == pc) {
+            return;
+        }
+    }
+    if (nseen < 64) {
+        seen[nseen++] = pc;
+    }
+    fprintf(stderr, "[pem:nullread] %s at 0x%llX through NULL emulated (GBA BIOS area: %s):\n",
+            is_write ? "write" : "read", (unsigned long long)addr, is_write ? "ignored" : "reads 0");
+    print_frames("nullread", pc);
+}
+#endif
+
 static void on_signal(int sig, siginfo_t *info, void *uctx) {
-    (void)uctx;
-    fprintf(stderr, "\n[pem:crash] signal %d (address %p)\n", sig, info != NULL ? info->si_addr : NULL);
-    print_frames("crash");
-    fflush(stderr);
+    ucontext_t *uc = uctx;
+#ifdef PEM_CAN_EMULATE_NULL
+    if ((sig == SIGSEGV || sig == SIGBUS) && info != NULL) {
+        /* A read/write through NULL: the GBA reads its BIOS there (nullread_pc.c). */
+        uint64_t *regs[16], *rip, *flags;
+        ctx_regs(uc, regs, &rip, &flags);
+        uintptr_t pc0 = (uintptr_t)*rip;
+        uint32_t fl = (uint32_t)*flags;
+        bool is_write = ctx_fault_is_write(uc);
+        if (pc_emulate_null_access(regs, rip, &fl, (uintptr_t)info->si_addr, is_write)) {
+            *flags = (*flags & ~0xFFFFFFFFull) | fl;
+            note_null_read(pc0, (uintptr_t)info->si_addr, is_write);
+            return;
+        }
+    }
+#endif
+    fprintf(stderr, "\n[pem:crash] signal %d at pc=0x%016llX (address %p)\n[pem:crash] backtrace:\n", sig,
+            (unsigned long long)ctx_pc(uc), info != NULL ? info->si_addr : NULL);
+    print_frames("crash", ctx_pc(uc));
+    pc_flash_flush();
     _Exit(3);
 }
 
+/* --- hang watchdog: if no frame is produced for a while, the game thread is
+ * interrupted (SIGUSR2) and prints where it is. */
+static pthread_t s_game_thread;
+static volatile int s_frames_seen;
+static volatile int s_hang_frames;
+
 void pc_watchdog_kick(void) {
+    __atomic_add_fetch(&s_frames_seen, 1, __ATOMIC_RELAXED);
+}
+
+static void on_hang_probe(int sig, siginfo_t *info, void *uctx) {
+    (void)sig;
+    (void)info;
+    fprintf(stderr, "\n[pem:hang] no frame for 5 s (after %d frames); game thread at:\n", s_hang_frames);
+    print_frames("hang", ctx_pc(uctx));
+    const char *e = getenv("PEM_HANG_EXIT");
+    if (e && *e && *e != '0') {
+        _Exit(3);
+    }
+}
+
+static void *watchdog_main(void *arg) {
+    (void)arg;
+    int last = -1, stalled = 0, reported = 0;
+    for (;;) {
+        sleep(1);
+        int now = __atomic_load_n(&s_frames_seen, __ATOMIC_RELAXED);
+        stalled = (now == last) ? stalled + 1 : 0;
+        last = now;
+        if (stalled == 5 && reported < 3) {
+            reported++;
+            s_hang_frames = now;
+            pthread_kill(s_game_thread, SIGUSR2);
+        }
+    }
+    return NULL;
 }
 
 void pc_log_backtrace(const char *tag) {
-    fprintf(stderr, "[pem:%s] game check failed\n", tag);
-    print_frames(tag);
+    fprintf(stderr, "[pem:%s] game check failed; backtrace:\n", tag);
+    print_frames(tag, 0);
 }
 
 void pc_crash_install(void) {
+    /* Own signal stack: a stack overflow must still be reported. */
+    static char alt[64 * 1024];
+    stack_t ss = { .ss_sp = alt, .ss_size = sizeof alt, .ss_flags = 0 };
+    sigaltstack(&ss, NULL);
+
     struct sigaction sa;
     memset(&sa, 0, sizeof sa);
     sa.sa_sigaction = on_signal;
-    sa.sa_flags = SA_SIGINFO;
+    sa.sa_flags = SA_SIGINFO | SA_ONSTACK | SA_NODEFER;
     sigemptyset(&sa.sa_mask);
     sigaction(SIGSEGV, &sa, NULL);
     sigaction(SIGILL, &sa, NULL);
     sigaction(SIGFPE, &sa, NULL);
     sigaction(SIGBUS, &sa, NULL);
     sigaction(SIGABRT, &sa, NULL);
+
+    sa.sa_sigaction = on_hang_probe;
+    sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+    sigaction(SIGUSR2, &sa, NULL);
+    s_game_thread = pthread_self();
+    pthread_t t;
+    if (pthread_create(&t, NULL, watchdog_main, NULL) == 0) {
+        pthread_detach(t);
+    }
+    if (getenv("PEM_WATCH") != NULL) {
+        fprintf(stderr, "[pem:watch] hardware watchpoints are Windows-only for now\n");
+    }
 }
 #endif
