@@ -104,7 +104,7 @@ def main():
     bad = []
     for rel in changed:
         if rel.startswith("src/platform_pc/") or rel.startswith("cmake/") or rel in (
-                "CMakeLists.txt", ".gitignore", "PORTING_ROADMAP.md", "README_PC.md") or rel.startswith("docs/"):
+                "CMakeLists.txt", ".gitignore", "PORTING_ROADMAP.md", "README_PC.md") or rel.startswith(("docs/", ".github/")):
             continue
         try:
             cur = open(rel, encoding="utf-8", errors="replace").read()
@@ -128,7 +128,8 @@ def main():
                 bad.append(("differs", rel))
             continue
         if not rel.endswith(SOURCE_EXT):
-            bad.append(("non-source change", rel))
+            if cur.replace("\r\n", "\n") != orig.replace("\r\n", "\n"):   # not just line endings
+                bad.append(("non-source change", rel))
             continue
         if gba(cur) != norm(orig):
             bad.append(("differs", rel))
