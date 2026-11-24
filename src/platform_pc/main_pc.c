@@ -72,7 +72,7 @@ void SoftResetRom(uint32_t flags) {
 
 /* ---- test hooks ---------------------------------------------------------- */
 static long s_exit_after = -1;
-static char s_shots[512];
+static char *s_shots;   /* PEM_SHOT, any length */
 
 static void save_bmp(const char *path, const uint32_t *argb) {
     SDL_Surface *s = SDL_CreateRGBSurfaceWithFormatFrom((void *)argb, PC_GBA_WIDTH, PC_GBA_HEIGHT, 32,
@@ -88,9 +88,12 @@ static void save_bmp(const char *path, const uint32_t *argb) {
 }
 
 /* PEM_REGS=F1,F2,...: log the display registers and palette at those frames. */
-static char s_regs[256];
+static char *s_regs;    /* PEM_REGS */
+
+void pc_debug_dump_game(unsigned long long frame);
 
 static void dump_regs(uint64_t frame) {
+    pc_debug_dump_game(frame);
     const volatile uint16_t *io = (const volatile uint16_t *)(uintptr_t)PC_IO_BASE;
     const volatile uint16_t *pal = (const volatile uint16_t *)(uintptr_t)PC_PLTT_BASE;
     pc_log("regs@%llu DISPCNT=%04X BG0CNT=%04X BG1CNT=%04X BG2CNT=%04X BG3CNT=%04X "
@@ -108,27 +111,66 @@ static void dump_regs(uint64_t frame) {
         n += snprintf(line + n, sizeof line - (size_t)n, "%04X ", pal[i]);
     }
     pc_log("regs@%llu OBJPAL[0..15] %s", (unsigned long long)frame, line);
+    /* How much of each VRAM area is non-zero: 4 BG char blocks (16 KiB),
+     * the 32 screen blocks (2 KiB, in percent), OBJ tiles. */
+    const volatile uint8_t *vram = (const volatile uint8_t *)(uintptr_t)PC_VRAM_BASE;
+    n = 0;
+    for (int b = 0; b < 4; b++) {
+        int nz = 0;
+        for (int i = 0; i < 0x4000; i++) nz += vram[b * 0x4000 + i] != 0;
+        n += snprintf(line + n, sizeof line - (size_t)n, "char%d=%d%% ", b, nz * 100 / 0x4000);
+    }
+    int nzobj = 0;
+    for (int i = 0x10000; i < 0x18000; i++) nzobj += vram[i] != 0;
+    n += snprintf(line + n, sizeof line - (size_t)n, "obj=%d%% | screen:", nzobj * 100 / 0x8000);
+    for (int s = 0; s < 32; s++) {
+        int nz = 0;
+        for (int i = 0; i < 0x800; i++) nz += vram[s * 0x800 + i] != 0;
+        n += snprintf(line + n, sizeof line - (size_t)n, " %d", nz * 100 / 0x800);
+    }
+    pc_log("regs@%llu VRAM %s", (unsigned long long)frame, line);
+
+    /* PEM_PEEK=ADDR:LEN,...: raw memory (addresses from `nm pokeemerald.exe`,
+     * statics included), 16 bytes per line. */
+    const char *peek = getenv("PEM_PEEK");
+    if (peek && *peek) {
+        char *list = strdup(peek), *save = NULL;
+        for (char *tok = strtok_r(list, ",", &save); tok; tok = strtok_r(NULL, ",", &save)) {
+            char *colon = strchr(tok, ':');
+            uintptr_t addr = (uintptr_t)strtoull(tok, NULL, 0);
+            size_t len = colon ? (size_t)strtoull(colon + 1, NULL, 0) : 16;
+            for (size_t off = 0; off < len; off += 16) {
+                n = 0;
+                for (size_t i = off; i < off + 16 && i < len; i++) {
+                    n += snprintf(line + n, sizeof line - (size_t)n, "%02X ",
+                                  ((const volatile uint8_t *)addr)[i]);
+                }
+                pc_log("peek@%llu %08llX: %s", (unsigned long long)frame, (unsigned long long)(addr + off), line);
+            }
+        }
+        free(list);
+    }
 }
 
 static void frame_hook(uint64_t frame, const uint32_t *argb) {
-    if (s_shots[0]) {
-        char list[512];
-        snprintf(list, sizeof list, "%s", s_shots);
-        for (char *tok = strtok(list, ","); tok; tok = strtok(NULL, ",")) {
+    if (s_shots) {
+        char *list = strdup(s_shots), *save = NULL;
+        for (char *tok = strtok_r(list, ",", &save); tok; tok = strtok_r(NULL, ",", &save)) {
             char *colon = strchr(tok, ':');
             if (colon && strtoull(tok, NULL, 10) == frame) {
                 save_bmp(colon + 1, argb);
             }
         }
+        free(list);
     }
-    if (s_regs[0]) {
-        char list[256];
-        snprintf(list, sizeof list, "%s", s_regs);
-        for (char *tok = strtok(list, ","); tok; tok = strtok(NULL, ",")) {
+    if (s_regs) {
+        char *list = strdup(s_regs), *save = NULL;
+        for (char *tok = strtok_r(list, ",", &save); tok; tok = strtok_r(NULL, ",", &save)) {
             if (strtoull(tok, NULL, 10) == frame) {
                 dump_regs(frame);
             }
         }
+        free(list);
     }
     if (s_exit_after >= 0 && (long)frame >= s_exit_after) {
         pc_log("PEM_EXIT_AFTER reached (%ld frames)", s_exit_after);
@@ -137,10 +179,11 @@ static void frame_hook(uint64_t frame, const uint32_t *argb) {
     }
 }
 
-/* PEM_INPUT="F1-F2:KEYS,F3:KEYS,..." holds KEYS (A,B,START,SELECT,UP,DOWN,
- * LEFT,RIGHT,L,R joined by '+') during frames F1..F2 (or frame F3 only).
+/* PEM_INPUT="F1-F2:KEYS,F3:KEYS,F4-F5/P:KEYS,..." holds KEYS (A,B,START,
+ * SELECT,UP,DOWN,LEFT,RIGHT,L,R joined by '+') during frames F1..F2 (or
+ * frame F3 only); "/P" presses them for 4 frames every P frames instead.
  * Replaces keyboard/gamepad input for the whole run. */
-static char s_input[1024];
+static char *s_input;
 
 static uint16_t parse_keys(const char *s) {
     static const struct { const char *name; uint16_t bit; } kKeys[] = {
@@ -162,9 +205,8 @@ static uint16_t parse_keys(const char *s) {
 }
 
 static uint16_t scripted_input(uint64_t frame) {
-    char list[1024];
     uint16_t keys = 0;
-    snprintf(list, sizeof list, "%s", s_input);
+    char *list = strdup(s_input);
     char *save = NULL;
     for (char *tok = strtok_r(list, ",", &save); tok; tok = strtok_r(NULL, ",", &save)) {
         char *colon = strchr(tok, ':');
@@ -173,12 +215,15 @@ static uint16_t scripted_input(uint64_t frame) {
         }
         *colon = '\0';
         char *dash = strchr(tok, '-');
+        char *slash = strchr(tok, '/');
         uint64_t f1 = strtoull(tok, NULL, 10);
         uint64_t f2 = dash ? strtoull(dash + 1, NULL, 10) : f1;
-        if (frame >= f1 && frame <= f2) {
+        uint64_t period = slash ? strtoull(slash + 1, NULL, 10) : 0;
+        if (frame >= f1 && frame <= f2 && (period == 0 || (frame - f1) % period < 4)) {
             keys |= parse_keys(colon + 1);
         }
     }
+    free(list);
     return keys;
 }
 
@@ -208,7 +253,7 @@ int main(int argc, char **argv) {
     }
     e = getenv("PEM_SHOT");
     if (e && *e) {
-        snprintf(s_shots, sizeof s_shots, "%s", e);
+        s_shots = strdup(e);
     }
     if (!pc_hw_init()) {
         pc_fatal("cannot reserve the GBA memory map");
@@ -220,11 +265,11 @@ int main(int argc, char **argv) {
     pc_video_set_frame_hook(frame_hook);
     e = getenv("PEM_REGS");
     if (e && *e) {
-        snprintf(s_regs, sizeof s_regs, "%s", e);
+        s_regs = strdup(e);
     }
     e = getenv("PEM_INPUT");
     if (e && *e) {
-        snprintf(s_input, sizeof s_input, "%s", e);
+        s_input = strdup(e);
         pc_input_set_override(scripted_input);
     }
     pc_run_on_low_stack(run_game, NULL);

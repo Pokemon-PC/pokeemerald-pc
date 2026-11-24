@@ -327,6 +327,36 @@ static void test_rtc(const char *dir) {
     remove(path);
 }
 
+/* ------------------------------------------------------- NULL reads (GBA BIOS) */
+
+struct FarFields {
+    u8 pad[0x1E20];
+    u8 b;
+    u16 h;
+    u32 w;
+    u64 q;
+};
+
+static int __attribute__((noinline)) null_read_cmp(volatile struct FarFields *p) {
+    return p->b == 5 ? 1 : 2;   /* compiled as a CMP on memory */
+}
+
+static void test_null_reads(void) {
+#if defined(_WIN32)
+    volatile struct FarFields *p = NULL;
+    u8 b = p->b;
+    u16 h = p->h;
+    u32 w = p->w;
+    u64 q = p->q;
+    s32 sx = (s8)p->b;
+    CHECK(b == 0 && h == 0 && w == 0 && q == 0 && sx == 0, "loads through NULL read 0 (%u %u %u %llu)",
+          b, h, w, (unsigned long long)q);
+    CHECK(null_read_cmp(p) == 2, "compare through NULL sees 0");
+#else
+    printf("skip: NULL-read emulation is Windows-only for now\n");
+#endif
+}
+
 int main(int argc, char **argv) {
     set_env("PEM_HEADLESS", "1");
     set_env("PEM_FAST", "1");
@@ -345,6 +375,8 @@ int main(int argc, char **argv) {
     test_gpu();
     test_flash(dir);
     test_rtc(dir);
+    pc_crash_install();
+    test_null_reads();
 
     printf("%d checks, %d failures\n", s_checks, s_failures);
     return s_failures ? 1 : 0;

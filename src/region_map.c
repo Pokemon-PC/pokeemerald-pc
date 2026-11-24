@@ -508,7 +508,13 @@ static const struct SpriteTemplate sFlyDestIconSpriteTemplate =
 void InitRegionMap(struct RegionMap *regionMap, bool8 zoomed)
 {
     InitRegionMapData(regionMap, NULL, zoomed);
+#ifdef PLATFORM_PC
+    // LoadRegionMapGfx waits for the VBlank-driven DMA queue (see overworld.c).
+    while (LoadRegionMapGfx())
+        pc_advance_line();
+#else
     while (LoadRegionMapGfx());
+#endif
 }
 
 void InitRegionMapData(struct RegionMap *regionMap, const struct BgTemplate *template, bool8 zoomed)

@@ -42,7 +42,7 @@ Audit détaillé : [docs/PORTING_API_AUDIT.md](docs/PORTING_API_AUDIT.md).
 | M1 Squelette | CMake : outils natifs + données générées + HAL SDL2 | une image du jeu (PNG→4bpp→VRAM) affichée dans la fenêtre | ✅ |
 | M2 Couche matériel | carte mémoire, base fixe, BIOS C, DMA, IRQ/VBlank, touches, Flash, RTC | autotest CTest vert | ✅ |
 | M3 Tout le jeu | tout `src/` compilé avec Clang (via preproc), données `.s` assemblées/converties, link neutralisé | `AgbMain()` tourne jusqu'à l'écran titre sans plantage | ✅ |
-| M4 2D | BG texte/affine, OAM, fenêtres, mélange, mosaïque, H-Blank/DMA H-Blank | intro + titre + monde affichés justes | ☐ |
+| M4 2D | BG texte/affine, OAM, fenêtres, mélange, mosaïque, H-Blank/DMA H-Blank | intro + titre + monde affichés justes | ✅ (mosaïque à faire) |
 | M5 Son | mixeur m4a en C + canaux PSG | musique de l'intro juste | ✅ (écoute à confirmer) |
 | M6 Jeu & finitions | parties scriptées, bugs 64 bits, config, paquet | systèmes principaux testés en jeu | ☐ |
 | M7 Multiplateforme | Linux/macOS, CI, vérification matching | CI verte 3 OS | ☐ |
@@ -168,3 +168,22 @@ Audit détaillé : [docs/PORTING_API_AUDIT.md](docs/PORTING_API_AUDIT.md).
     validé en remettant le séquenceur muet (2 échecs détectés).
   - Reste : écoute par l'utilisateur ; ~~texte~~ → **M4** : le texte des menus et des
     dialogues ne s'affiche pas (menu principal bleu vide, pas de boîte de dialogue).
+- **2026-11-24 — M4 atteint** : on joue jusqu'au **Bourg-en-Vol** (camion, Maman, maison).
+  - Texte absent (menus, dialogues) : le **tas du jeu** était une globale du PC (~0x10xxxxxx) ;
+    `bg.c` (`IsTileMapOutsideWram`) refuse les tilemaps au-dessus d'`IWRAM_END`. Sur PC le tas
+    est désormais placé **dans l'EWRAM réelle** (0x02000000, comme sur GBA où `gHeap` est la
+    première variable EWRAM), ×4 (structures à pointeurs) ; réserve EWRAM PC portée à 1 Mio.
+  - Nouvelle classe : **lecture via NULL tolérée par la GBA** (adresse 0 = BIOS lisible).
+    Ex. : l'écran de nom libère ses données puis ses rappels de sprites et de VBlank les relisent.
+    Traitée à la racine : `nullread_pc.c` émule, dans le gestionnaire d'exceptions, les
+    lectures/comparaisons fautives dans 0..0x3FFF comme lisant 0 (décodage x86 des formes
+    MOV/MOVZX/MOVSX/MOVSXD/CMP/TEST) et continue ; chaque site est signalé une fois
+    (`[pem:nullread]` + pile). Testé dans l'autotest (61 vérifications). Windows seulement.
+  - Classe « boucle d'étapes qui attend l'IRQ VBlank » (file DMA3) : `DoMapLoadLoop`
+    (chargement de carte) et `InitRegionMap` font avancer le temps (`pc_advance_line`).
+  - Outils : `PEM_INPUT=F1-F2/P:A` (appui périodique, sans limite de longueur), `PEM_PEEK=ADDR:LEN`
+    (mémoire brute, adresses de `nm`, statiques comprises), `PEM_REGS` montre aussi le
+    remplissage de la VRAM, les tâches actives et les rappels (`debug_pc.c`).
+  - Tests `ctest` : `hal_autotest`, `game_smoke` (jusqu'à la nouvelle partie, son) et
+    **`game_world`** (camion → Bourg-en-Vol → maison).
+  - Reste pour le rendu : mosaïque ; vérifier combats/menus (M6). Émulation NULL à porter sous Linux.

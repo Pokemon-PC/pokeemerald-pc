@@ -165,6 +165,7 @@ add_executable(pokeemerald
     ${PEM_ROOT}/src/platform_pc/link_pc.c
     ${PEM_ROOT}/src/platform_pc/sound_pc.c
     ${PEM_ROOT}/src/platform_pc/layout_check_pc.c
+    ${PEM_ROOT}/src/platform_pc/debug_pc.c
     ${PEM_GAME_DATA_OBJS})
 target_link_libraries(pokeemerald PRIVATE pem_game pem_hal_game pem_hal pem_game_flags pem::SDL2main pem::SDL2)
 pem_low_address_link(pokeemerald)
@@ -177,3 +178,9 @@ add_test(NAME game_smoke
          COMMAND ${Python3_EXECUTABLE} ${PEM_ROOT}/src/platform_pc/scripts/smoke_test.py
                  $<TARGET_FILE:pokeemerald> ${CMAKE_CURRENT_BINARY_DIR}/smoke)
 set_tests_properties(game_smoke PROPERTIES TIMEOUT 600)
+
+# Longer: new game -> truck -> Littleroot Town -> inside the house.
+add_test(NAME game_world
+         COMMAND ${Python3_EXECUTABLE} ${PEM_ROOT}/src/platform_pc/scripts/smoke_test.py --world
+                 $<TARGET_FILE:pokeemerald> ${CMAKE_CURRENT_BINARY_DIR}/world)
+set_tests_properties(game_world PROPERTIES TIMEOUT 900)

@@ -42,3 +42,9 @@ SIZE(struct MusicPlayerTrack, 0x50);
 _Static_assert(A8(sizeof(struct RfuLinkStatus)) + A8(sizeof(struct RfuStatic)) + A8(sizeof(struct RfuFixed))
                + RFU_CHILD_MAX * (sizeof(struct RfuSlotStatusNI) + sizeof(struct RfuSlotStatusUNI))
                + sizeof(struct RfuIntrStruct) <= 0x1800, "gRfuAPIBuffer too small for the PC layout");
+
+/* The game heap is placed at EWRAM_START (include/malloc.h): it must fit in
+ * the EWRAM area the HAL reserves. */
+#include "hw_pc.h"
+#include "malloc.h"
+_Static_assert(HEAP_SIZE <= PC_EWRAM_SIZE, "game heap larger than the reserved EWRAM");

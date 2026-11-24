@@ -35,6 +35,24 @@ static BOOL watch_value_suspicious(DWORD64 v) {
     return v != 0 && (v < 0x02000000u || v >= 0x07010000u);
 }
 
+/* Reports each emulated NULL-read site once (same stable addresses as the
+ * crash reports: symbolize.py names them). */
+static void note_null_read(DWORD64 rip, uintptr_t addr, CONTEXT c) {
+    static DWORD64 seen[64];
+    static int nseen;
+    for (int i = 0; i < nseen; i++) {
+        if (seen[i] == rip) {
+            return;
+        }
+    }
+    if (nseen < 64) {
+        seen[nseen++] = rip;
+    }
+    fprintf(stderr, "[pem:nullread] read at 0x%llX through NULL emulated as 0 (GBA: BIOS area):\n",
+            (unsigned long long)addr);
+    print_backtrace(c, "nullread");
+}
+
 static LONG WINAPI on_exception(EXCEPTION_POINTERS *ep) {
     DWORD code = ep->ExceptionRecord->ExceptionCode;
     if (code == EXCEPTION_SINGLE_STEP && s_watch_addr != 0 && (ep->ContextRecord->Dr6 & 1)) {
@@ -46,6 +64,22 @@ static LONG WINAPI on_exception(EXCEPTION_POINTERS *ep) {
             print_backtrace(*ep->ContextRecord, "watch");
         }
         return EXCEPTION_CONTINUE_EXECUTION;
+    }
+    if (code == EXCEPTION_ACCESS_VIOLATION && ep->ExceptionRecord->NumberParameters >= 2 &&
+        ep->ExceptionRecord->ExceptionInformation[0] == 0) {
+        /* A read through NULL: the GBA reads its BIOS there (nullread_pc.c). */
+        CONTEXT *c = ep->ContextRecord;
+        uint64_t *regs[16] = { &c->Rax, &c->Rcx, &c->Rdx, &c->Rbx, &c->Rsp, &c->Rbp, &c->Rsi, &c->Rdi,
+                               &c->R8, &c->R9, &c->R10, &c->R11, &c->R12, &c->R13, &c->R14, &c->R15 };
+        DWORD64 rip0 = c->Rip;
+        uintptr_t addr = (uintptr_t)ep->ExceptionRecord->ExceptionInformation[1];
+        CONTEXT before = *c;
+        uint32_t fl = (uint32_t)c->EFlags;
+        if (pc_emulate_null_read(regs, (uint64_t *)&c->Rip, &fl, addr)) {
+            c->EFlags = fl;
+            note_null_read(rip0, addr, before);
+            return EXCEPTION_CONTINUE_EXECUTION;
+        }
     }
     if (code != EXCEPTION_ACCESS_VIOLATION && code != EXCEPTION_ILLEGAL_INSTRUCTION &&
         code != EXCEPTION_INT_DIVIDE_BY_ZERO && code != EXCEPTION_STACK_OVERFLOW &&

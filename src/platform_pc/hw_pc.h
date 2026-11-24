@@ -19,7 +19,8 @@ extern "C" {
 
 /* Real GBA sizes, then the 64 KiB-aligned reservation (Windows granularity). */
 #define PC_EWRAM_BASE  0x02000000u
-#define PC_EWRAM_SIZE  0x00040000u   /* 256 KiB */
+#define PC_EWRAM_SIZE  0x00100000u   /* 256 KiB on the GBA; 1 MiB here: the game
+                                      * heap (4x, see include/malloc.h) lives there */
 #define PC_IWRAM_BASE  0x03000000u
 #define PC_IWRAM_SIZE  0x00008000u   /* 32 KiB  */
 #define PC_IO_BASE     0x04000000u

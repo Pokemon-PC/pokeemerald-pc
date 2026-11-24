@@ -22,7 +22,48 @@ def frame_bytes(path):
         return f.read()[54:]   # skip the BMP header
 
 
+def colors(path):
+    data = frame_bytes(path)
+    return len({data[i:i + 3] for i in range(0, len(data) - 2, 3)})
+
+
+def main_world(exe, work):
+    """--world: new game -> truck -> Littleroot Town -> inside the house."""
+    env = dict(os.environ, PEM_HEADLESS="1", PEM_FAST="1", PEM_HANG_EXIT="1", PEM_EXIT_AFTER="10600",
+               PEM_INPUT="400-404:START,1400-1404:START,1700-7450/25:A,9000-9004:B,9100-9400:RIGHT,"
+                         "9800-10500/40:A",
+               PEM_SHOT="7600:truck.bmp,9650:town.bmp,10555:house.bmp")
+    r = subprocess.run([exe], cwd=work, env=env, capture_output=True, text=True, timeout=900)
+    log = r.stdout + r.stderr
+    errors = []
+    if r.returncode != 0 or "[pem:crash]" in log or "[pem:hang]" in log:
+        errors.append(f"exit {r.returncode}, crash/hang in log")
+    for n in ("truck", "town", "house"):
+        p = os.path.join(work, n + ".bmp")
+        if not os.path.exists(p):
+            errors.append(f"no {n} frame")
+            continue
+        c = colors(p)
+        print(f"{n}: {c} colours")
+        if c < 16:
+            errors.append(f"{n} frame looks empty ({c} colours)")
+    for e in errors:
+        print("FAIL", e)
+    if errors:
+        print(log[-3000:])
+        return 1
+    print("world smoke test passed")
+    return 0
+
+
 def main():
+    if sys.argv[1] == "--world":
+        exe, work = os.path.abspath(sys.argv[2]), os.path.abspath(sys.argv[3])
+        os.makedirs(work, exist_ok=True)
+        for f in os.listdir(work):
+            if f.endswith((".bmp", ".wav", ".bin", ".rtc")):
+                os.remove(os.path.join(work, f))
+        return main_world(exe, work)
     exe, work = os.path.abspath(sys.argv[1]), os.path.abspath(sys.argv[2])
     os.makedirs(work, exist_ok=True)
     for f in os.listdir(work):
