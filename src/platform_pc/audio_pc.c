@@ -67,6 +67,7 @@ static double s_out_acc;
 static int16_t s_out[4096 * 2];
 static int s_prev_r, s_prev_l;   /* last DirectSound sample of the previous frame */
 
+static int s_volume = 100;   /* config.ini [audio] volume, 0..100 */
 static FILE *s_wav;
 static uint32_t s_wav_bytes;
 
@@ -116,9 +117,13 @@ void pc_audio_init(void) {
     for (int i = 0; i < 4; i++) {
         s_psg[i].lfsr = 0x7FFF;
     }
+    s_volume = pc_config_int("audio", "volume", 100);
+    if (s_volume < 0) s_volume = 0;
+    if (s_volume > 100) s_volume = 100;
     const char *mute = getenv("PEM_MUTE");
     const char *headless = getenv("PEM_HEADLESS");
-    if ((mute && *mute && *mute != '0') || (headless && *headless && *headless != '0')) {
+    if ((mute && *mute && *mute != '0') || (headless && *headless && *headless != '0')
+        || pc_config_int("audio", "mute", 0)) {
         return;
     }
     if (SDL_InitSubSystem(SDL_INIT_AUDIO) != 0) {
@@ -364,7 +369,7 @@ void pc_audio_frame(const int8_t *right, const int8_t *left, int n) {
             out_l += (double)pl * vol_l * psg_ratio / 4.0;
         }
 
-        int sr = (int)(out_r * 32), sl = (int)(out_l * 32);
+        int sr = (int)(out_r * 32 * s_volume / 100), sl = (int)(out_l * 32 * s_volume / 100);
         if (sr > 32767) sr = 32767;
         if (sr < -32768) sr = -32768;
         if (sl > 32767) sl = 32767;

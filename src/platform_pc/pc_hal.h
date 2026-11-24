@@ -73,6 +73,10 @@ void pc_flash_flush(void);
  * resets or sets the clock), like a cartridge battery. */
 void pc_rtc_set_path(const char *path);
 
+/* ---- config.ini (config_pc.c) -------------------------------------------- */
+const char *pc_config_get(const char *section, const char *key, const char *def);
+int pc_config_int(const char *section, const char *key, int def);
+
 /* ---- sound output (audio_pc.c) -------------------------------------------- */
 void pc_audio_init(void);   /* PEM_MUTE=1: no device; PEM_WAV=file.wav: record */
 /* One VBlank of DirectSound (FIFO A = right, FIFO B = left, n samples at the

@@ -44,7 +44,7 @@ Audit détaillé : [docs/PORTING_API_AUDIT.md](docs/PORTING_API_AUDIT.md).
 | M3 Tout le jeu | tout `src/` compilé avec Clang (via preproc), données `.s` assemblées/converties, link neutralisé | `AgbMain()` tourne jusqu'à l'écran titre sans plantage | ✅ |
 | M4 2D | BG texte/affine, OAM, fenêtres, mélange, mosaïque, H-Blank/DMA H-Blank | intro + titre + monde affichés justes | ✅ (mosaïque à faire) |
 | M5 Son | mixeur m4a en C + canaux PSG | musique de l'intro juste | ✅ (écoute à confirmer) |
-| M6 Jeu & finitions | parties scriptées, bugs 64 bits, config, paquet | systèmes principaux testés en jeu | ⏳ (combats, menus, sauvegarde ✅ ; paquet/config à faire) |
+| M6 Jeu & finitions | parties scriptées, bugs 64 bits, config, paquet | systèmes principaux testés en jeu | ✅ (mosaïque à faire) |
 | M7 Multiplateforme | Linux/macOS, CI, vérification matching | CI verte 3 OS | ☐ |
 
 ## À faire par l'utilisateur (le moment venu)
@@ -205,3 +205,18 @@ Audit détaillé : [docs/PORTING_API_AUDIT.md](docs/PORTING_API_AUDIT.md).
   - `README_PC.md` : construire, jouer, variables d'environnement.
   - Reste M6 : configuration des touches, paquet distribuable (exe + DLL éventuelles),
     parcours plus long de l'histoire, mosaïque ; M7 : Linux/macOS (dont l'émulation NULL), CI.
+- **2026-11-24 — M6 (fin)** : configuration, paquet, premier acte de l'histoire.
+  - **`config.ini`** à côté de l'exe (`config_pc.c`), créé avec les valeurs par défaut et
+    commenté : `[video]` taille/plein écran, `[audio]` muet/volume, `[keys]` touches (noms SDL,
+    plusieurs par bouton). Les variables `PEM_*` restent prioritaires pour les tests.
+  - **Paquet** : `scripts/package.py` → `dist/pokeemerald-pc-<commit>.zip` (exe sans symboles de
+    débogage, README, VERSION) ; refuse sauvegardes, ROM, config, journaux. Testé depuis un
+    dossier vierge : seulement des DLL système.
+  - **Histoire** jouée depuis une sauvegarde : horloge murale (OUI), maman, télé, maison de la
+    rivale et rencontre, jumelle, route 101, Prof. Seko poursuivi, sac, choix de Poussifeu,
+    combat contre Zigzaton gagné, labo (surnom). Aucun plantage ni nouvel accès nul.
+    La « fenêtre invisible » de l'horloge était une capture prise avant son ouverture.
+  - Test **`game_story`** (≈3 min) : refait la sauvegarde de `game_save`, puis ce parcours ;
+    vérifie chambre de la rivale, route 101, labo et 6 captures. `ctest` : 5/5.
+  - `check_gba_sources.py` : `README_PC.md` ajouté aux fichiers PC-only.
+  - Reste : mosaïque (M4) ; M7 : Linux/macOS (dont l'émulation NULL), CI.

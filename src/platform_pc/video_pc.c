@@ -13,12 +13,46 @@
 
 #include <SDL.h>
 #include <stdlib.h>
+#include <string.h>
 
 enum {
     KEY_A = 0x001, KEY_B = 0x002, KEY_SELECT = 0x004, KEY_START = 0x008,
     KEY_RIGHT = 0x010, KEY_LEFT = 0x020, KEY_UP = 0x040, KEY_DOWN = 0x080,
     KEY_R = 0x100, KEY_L = 0x200,
 };
+
+/* Keyboard bindings, from the [keys] section of config.ini. */
+static struct { SDL_Scancode code; uint16_t gba; } s_key_map[64];
+static int s_key_count;
+
+static void load_key_map(void) {
+    static const struct { const char *name; uint16_t gba; const char *def; } kButtons[] = {
+        { "A", KEY_A, "X" }, { "B", KEY_B, "Z" }, { "Start", KEY_START, "Return" },
+        { "Select", KEY_SELECT, "Backspace" }, { "Up", KEY_UP, "Up" }, { "Down", KEY_DOWN, "Down" },
+        { "Left", KEY_LEFT, "Left" }, { "Right", KEY_RIGHT, "Right" }, { "L", KEY_L, "A" },
+        { "R", KEY_R, "S" },
+    };
+    s_key_count = 0;
+    for (unsigned b = 0; b < sizeof kButtons / sizeof kButtons[0]; b++) {
+        char list[128];
+        snprintf(list, sizeof list, "%s", pc_config_get("keys", kButtons[b].name, kButtons[b].def));
+        for (char *tok = strtok(list, ","); tok; tok = strtok(NULL, ",")) {
+            while (*tok == ' ') tok++;
+            char *end = tok + strlen(tok);
+            while (end > tok && end[-1] == ' ') *--end = '\0';
+            SDL_Scancode code = SDL_GetScancodeFromName(tok);
+            if (code == SDL_SCANCODE_UNKNOWN) {
+                pc_warn("config: unknown key name '%s' for %s", tok, kButtons[b].name);
+                continue;
+            }
+            if (s_key_count < (int)(sizeof s_key_map / sizeof s_key_map[0])) {
+                s_key_map[s_key_count].code = code;
+                s_key_map[s_key_count].gba = kButtons[b].gba;
+                s_key_count++;
+            }
+        }
+    }
+}
 
 static SDL_Window *s_win;
 static SDL_Renderer *s_ren;
@@ -42,10 +76,13 @@ bool pc_video_init(void) {
         pc_warn("SDL_Init: %s", SDL_GetError());
         return false;
     }
-    int scale = 3;
+    int scale = pc_config_int("video", "scale", 3);
     const char *s = getenv("PEM_SCALE");
     if (s && atoi(s) > 0) {
         scale = atoi(s);
+    }
+    if (scale < 1) {
+        scale = 1;
     }
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
     s_win = SDL_CreateWindow("Pokemon Emerald", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
@@ -62,6 +99,10 @@ bool pc_video_init(void) {
     SDL_RenderSetIntegerScale(s_ren, SDL_FALSE);
     s_tex = SDL_CreateTexture(s_ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,
                               PC_GBA_WIDTH, PC_GBA_HEIGHT);
+    if (pc_config_int("video", "fullscreen", 0)) {
+        SDL_SetWindowFullscreen(s_win, SDL_WINDOW_FULLSCREEN_DESKTOP);
+    }
+    load_key_map();
     return s_tex != NULL;
 }
 
@@ -81,16 +122,16 @@ void pc_video_present(const uint32_t *argb) {
 static uint16_t keyboard_keys(void) {
     const uint8_t *k = SDL_GetKeyboardState(NULL);
     uint16_t keys = 0;
-    if (k[SDL_SCANCODE_X]) keys |= KEY_A;
-    if (k[SDL_SCANCODE_Z]) keys |= KEY_B;
-    if (k[SDL_SCANCODE_BACKSPACE]) keys |= KEY_SELECT;
-    if (k[SDL_SCANCODE_RETURN] && !(SDL_GetModState() & KMOD_ALT)) keys |= KEY_START;
-    if (k[SDL_SCANCODE_RIGHT]) keys |= KEY_RIGHT;
-    if (k[SDL_SCANCODE_LEFT]) keys |= KEY_LEFT;
-    if (k[SDL_SCANCODE_UP]) keys |= KEY_UP;
-    if (k[SDL_SCANCODE_DOWN]) keys |= KEY_DOWN;
-    if (k[SDL_SCANCODE_S]) keys |= KEY_R;
-    if (k[SDL_SCANCODE_A]) keys |= KEY_L;
+    for (int i = 0; i < s_key_count; i++) {
+        if (!k[s_key_map[i].code]) {
+            continue;
+        }
+        /* Alt+Enter is the full-screen toggle, not Start. */
+        if (s_key_map[i].code == SDL_SCANCODE_RETURN && (SDL_GetModState() & KMOD_ALT)) {
+            continue;
+        }
+        keys |= s_key_map[i].gba;
+    }
     return keys;
 }
 

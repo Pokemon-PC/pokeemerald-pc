@@ -190,3 +190,10 @@ add_test(NAME game_save
          COMMAND ${Python3_EXECUTABLE} ${PEM_ROOT}/src/platform_pc/scripts/smoke_test.py --save
                  $<TARGET_FILE:pokeemerald> ${CMAKE_CURRENT_BINARY_DIR}/savetest)
 set_tests_properties(game_save PROPERTIES TIMEOUT 900)
+
+# First act of the story from that save: wall clock, rival, Route 101,
+# starter, first battle, Prof. Birch's lab.
+add_test(NAME game_story
+         COMMAND ${Python3_EXECUTABLE} ${PEM_ROOT}/src/platform_pc/scripts/smoke_test.py --story
+                 $<TARGET_FILE:pokeemerald> ${CMAKE_CURRENT_BINARY_DIR}/storytest)
+set_tests_properties(game_story PROPERTIES TIMEOUT 1500)

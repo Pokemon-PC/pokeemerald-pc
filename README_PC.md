@@ -30,7 +30,10 @@ cmake --build build-pc
 3. le jeu : `build-pc/pokeemerald.exe`.
 
 Tests : `cd build-pc && ctest` (couche matériel, démarrage avec son, monde + combat,
-menus + sauvegarde + reprise).
+menus + sauvegarde + reprise, premier acte de l'histoire jusqu'au labo).
+
+Paquet à distribuer : `python src/platform_pc/scripts/package.py` → `dist/pokeemerald-pc-<commit>.zip`
+(exe + README ; jamais de sauvegarde, de ROM ni de config).
 
 ## Jouer
 
@@ -44,6 +47,10 @@ Lancer `pokeemerald.exe` depuis un dossier où il peut écrire : la sauvegarde
 | Croix | Flèches |
 | L / R | A / S |
 | Plein écran | F11 ou Alt+Entrée |
+
+Touches, taille de fenêtre, plein écran et volume se règlent dans **`config.ini`**,
+créé à côté de l'exe au premier lancement (noms de touches SDL, plusieurs par bouton
+séparés par des virgules).
 
 Une manette reconnue par SDL fonctionne aussi (disposition Nintendo).
 Le jeu démarre en **mono** comme l'original (Options → Son → Stéréo).

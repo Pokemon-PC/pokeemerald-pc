@@ -57,7 +57,8 @@ add_library(pem_hal STATIC
     ${PEM_PC_DIR}/crash_pc.c
     ${PEM_PC_DIR}/timer_pc.c
     ${PEM_PC_DIR}/audio_pc.c
-    ${PEM_PC_DIR}/nullread_pc.c)
+    ${PEM_PC_DIR}/nullread_pc.c
+    ${PEM_PC_DIR}/config_pc.c)
 target_include_directories(pem_hal PUBLIC ${PEM_PC_DIR})
 target_compile_definitions(pem_hal PUBLIC PLATFORM_PC=1)
 target_link_libraries(pem_hal PUBLIC pem::SDL2)

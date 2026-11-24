@@ -51,3 +51,4 @@ build-tools/
 build-pc/
 save.bin
 __pycache__/
+dist/
