@@ -49,6 +49,18 @@ else()
     set(PEM_GAME_DATA_SECTION "pem_game")
 endif()
 
+# French text (src/platform_pc/lang_pc.c): room and registry for each string
+# of the map, filled at run time from the player's French ROM.
+set(PEM_LANG_MAP ${PEM_ROOT}/src/platform_pc/lang/fr_bpef.tsv)
+set(PEM_LANG_DEPS ${PEM_LANG_MAP} ${PEM_ROOT}/src/platform_pc/scripts/lang/lang_build.py)
+if(WIN32)
+    set(PEM_LANG_SECTION ".rdata$pemlang1")
+elseif(APPLE)
+    set(PEM_LANG_SECTION "__DATA,__pemlang")
+else()
+    set(PEM_LANG_SECTION "pem_lang")
+endif()
+
 set(PEM_PP_DIR ${CMAKE_CURRENT_BINARY_DIR}/pp)
 set(PEM_GAME_PP_SOURCES)
 foreach(src ${PEM_GAME_SOURCES})
@@ -59,8 +71,9 @@ foreach(src ${PEM_GAME_SOURCES})
         COMMAND ${Python3_EXECUTABLE} ${PEM_ROOT}/src/platform_pc/scripts/pp_c.py
                 --clang ${CMAKE_C_COMPILER} --preproc ${PEM_PREPROC} --root ${PEM_ROOT}
                 --out ${out} --dep ${out}.d --data-section ${PEM_GAME_DATA_SECTION}
+                --lang-map ${PEM_LANG_MAP} --lang-section ${PEM_LANG_SECTION}
                 -- ${PEM_CPP_FLAGS} ${PEM_ROOT}/${src}
-        DEPENDS ${PEM_ROOT}/${src} ${PEM_ROOT}/src/platform_pc/scripts/pp_c.py
+        DEPENDS ${PEM_ROOT}/${src} ${PEM_ROOT}/src/platform_pc/scripts/pp_c.py ${PEM_LANG_DEPS}
         DEPFILE ${out}.d
         COMMENT "preproc ${src}"
         VERBATIM)
@@ -121,10 +134,10 @@ foreach(src ${PEM_DATA_ASM})
         OUTPUT ${obj}
         COMMAND ${Python3_EXECUTABLE} ${PEM_ROOT}/src/platform_pc/scripts/pp_s.py ${PEM_PP_S_FLAGS}
                 --clang ${CMAKE_C_COMPILER} --preproc ${PEM_PREPROC} --root ${PEM_ROOT}
-                --out ${pps} --dep ${pps}.d
+                --out ${pps} --dep ${pps}.d --lang-map ${PEM_LANG_MAP}
                 -- -iquote ${PEM_ROOT}/include -DMODERN=1 -DPLATFORM_PC=1 ${PEM_ROOT}/${src}
         COMMAND ${PEM_GNU_AS} -I ${PEM_ROOT} -I ${PEM_ROOT}/include -o ${obj} ${pps}
-        DEPENDS ${PEM_ROOT}/${src} ${PEM_ROOT}/src/platform_pc/scripts/pp_s.py
+        DEPENDS ${PEM_ROOT}/${src} ${PEM_ROOT}/src/platform_pc/scripts/pp_s.py ${PEM_LANG_DEPS}
         DEPFILE ${pps}.d
         WORKING_DIRECTORY ${PEM_ROOT}
         COMMENT "asm ${src}"
@@ -166,6 +179,8 @@ add_executable(pokeemerald
     ${PEM_ROOT}/src/platform_pc/sound_pc.c
     ${PEM_ROOT}/src/platform_pc/layout_check_pc.c
     ${PEM_ROOT}/src/platform_pc/debug_pc.c
+    ${PEM_ROOT}/src/platform_pc/lang_pc.c
+    ${PEM_ROOT}/src/platform_pc/lang_tables_pc.c
     ${PEM_GAME_DATA_OBJS})
 target_link_libraries(pokeemerald PRIVATE pem_game pem_hal_game pem_hal pem_game_flags pem::SDL2main pem::SDL2)
 pem_low_address_link(pokeemerald)
@@ -197,3 +212,13 @@ add_test(NAME game_story
          COMMAND ${Python3_EXECUTABLE} ${PEM_ROOT}/src/platform_pc/scripts/smoke_test.py --story
                  $<TARGET_FILE:pokeemerald> ${CMAKE_CURRENT_BINARY_DIR}/storytest)
 set_tests_properties(game_story PROPERTIES TIMEOUT 1500)
+
+# French: only with the player's own French ROM (never part of the repo).
+#   cmake -B build-pc -DPEM_FR_ROM="path/to/Pokemon - Version Emeraude (France).gba"
+set(PEM_FR_ROM "" CACHE FILEPATH "Your French Emerald ROM, for the game_french test")
+if(PEM_FR_ROM)
+    add_test(NAME game_french
+             COMMAND ${Python3_EXECUTABLE} ${PEM_ROOT}/src/platform_pc/scripts/smoke_test.py --french
+                     $<TARGET_FILE:pokeemerald> ${CMAKE_CURRENT_BINARY_DIR}/frenchtest ${PEM_FR_ROM})
+    set_tests_properties(game_french PROPERTIES TIMEOUT 900)
+endif()

@@ -2283,6 +2283,37 @@ static const u8 *TryGetStatusString(u8 *src)
     return NULL;
 }
 
+#ifdef PLATFORM_PC
+// The French game (text from the player's French ROM, platform_pc/lang_pc.c)
+// puts " sauvage" / " ennemi" after the name instead of "Wild " / "Foe ".
+int pc_lang_is_french(void);
+#define HANDLE_NICKNAME_STRING_CASE(battler, monIndex)                \
+    if (GetBattlerSide(battler) != B_SIDE_PLAYER)                     \
+    {                                                                   \
+        const u8 *affix_;                                               \
+        if (gBattleTypeFlags & BATTLE_TYPE_TRAINER)                     \
+            affix_ = sText_FoePkmnPrefix;                               \
+        else                                                            \
+            affix_ = sText_WildPkmnPrefix;                              \
+        toCpy = affix_;                                                 \
+        while (!pc_lang_is_french() && *toCpy != EOS)                   \
+        {                                                               \
+            dst[dstID] = *toCpy;                                        \
+            dstID++;                                                    \
+            toCpy++;                                                    \
+        }                                                               \
+        GetMonData(&gEnemyParty[monIndex], MON_DATA_NICKNAME, text);    \
+        StringGet_Nickname(text);                                       \
+        if (pc_lang_is_french())                                        \
+            StringAppend(text, affix_);                                 \
+    }                                                                   \
+    else                                                                \
+    {                                                                   \
+        GetMonData(&gPlayerParty[monIndex], MON_DATA_NICKNAME, text);   \
+        StringGet_Nickname(text);                                       \
+    }                                                                   \
+    toCpy = text;
+#else
 #define HANDLE_NICKNAME_STRING_CASE(battler, monIndex)                \
     if (GetBattlerSide(battler) != B_SIDE_PLAYER)                     \
     {                                                                   \
@@ -2304,6 +2335,7 @@ static const u8 *TryGetStatusString(u8 *src)
     }                                                                   \
     StringGet_Nickname(text);                                           \
     toCpy = text;
+#endif
 
 // Ensure the defined length for an item name can contain the full defined length of a berry name.
 // This ensures that custom Enigma Berry names will fit in the text buffer at the top of BattleStringExpandPlaceholders.

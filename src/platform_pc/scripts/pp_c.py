@@ -25,6 +25,8 @@ def main():
     ap.add_argument("--dep", required=True)
     ap.add_argument("--data-section", default="",
                     help="put the file's variables in this section (soft reset snapshot)")
+    ap.add_argument("--lang-map", default="", help="French text map (scripts/lang/lang_build.py)")
+    ap.add_argument("--lang-section", default="pem_lang", help="section of the French text registry")
     a = ap.parse_args(sys.argv[1:split])
     rest = sys.argv[split + 1:]
     src = rest[-1]
@@ -44,6 +46,12 @@ def main():
         sys.stderr.buffer.write(pp.stderr)
         return pp.returncode
 
+    result = pp.stdout
+    if a.lang_map:
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lang"))
+        import lang_build
+        result = lang_build.patch_c(result, rel, a.lang_map, a.lang_section)
+
     os.makedirs(os.path.dirname(a.out) or ".", exist_ok=True)
     tmp = a.out + ".tmp"
     with open(tmp, "wb") as f:
@@ -51,7 +59,7 @@ def main():
             # With -fno-zero-initialized-in-bss, every writable global and
             # static of the game lands in this one section.
             f.write(b'#pragma clang section data="%s"\n' % a.data_section.encode())
-        f.write(pp.stdout)
+        f.write(result)
     os.replace(tmp, a.out)
     return 0
 

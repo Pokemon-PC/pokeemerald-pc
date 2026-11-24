@@ -238,3 +238,24 @@ Audit détaillé : [docs/PORTING_API_AUDIT.md](docs/PORTING_API_AUDIT.md).
     jeu, ctest, paquet) : écrite, **pas exécutée** (dépôt sans remote GitHub).
   - `check_gba_sources.py` : un fichier ajouté n'est signalé que s'il est une source GBA.
   - Reste M7 : exécuter la CI, macOS ; la fenêtre et le son sous Linux (WSLg) à essayer à la main.
+- **2026-11-24 — Français (choix de langue)** : anglais ou français depuis la ROM du joueur.
+  - Table `src/platform_pc/lang/fr_bpef.tsv` (positions et longueurs, aucun texte) faite
+    par `scripts/lang/build_fr_map.py` sur « Pokémon Version Émeraude (France) » rév. 0 :
+    12 517 textes sur 13 486. Méthodes, de la plus sûre à la moins sûre : parcours des
+    scripts anglais assemblés en parallèle des scripts français (le bytecode est le même :
+    chaque pointeur donne l'adresse française exacte d'un texte) ; tables de pointeurs du C
+    (trouvées par vote des textes déjà placés, ou par leur forme) ; alignement de séquences
+    entre ancres, gardé seulement là où il a été vérifié ou s'il est encadré de paires sûres.
+  - Tables de noms à taille fixe (Pokémon, attaques, talents, types, objets, dresseurs,
+    classes, baies, catégories du Pokédex, décorations, Zone de Combat) : `find_fr_tables.py`
+    → `lang_tables_pc.c`, copie champ par champ.
+  - Build : `pp_c.py` / `pp_s.py` (`scripts/lang/lang_build.py`) réservent la place du
+    texte français et l'inscrivent dans une section registre ; `lang_pc.c` lit la ROM
+    (CRC-32), recopie les textes avant l'instantané de réinitialisation.
+  - Code : en français le nom d'un Pokémon adverse prend « sauvage » / « ennemi » après
+    lui (`battle_message.c`, sous `PLATFORM_PC`).
+  - `config.ini [game] language = auto|en|fr`, `rom = …` ; `PEM_LANG`, `PEM_ROM`.
+  - Vérifié : menu, Prof. Seko, maman, combat en français ; l'anglais reste identique octet
+    pour octet (captures de `game_story`) ; test `game_french` si `-DPEM_FR_ROM=…`.
+  - Reste : ~7 % de textes en anglais, textes dessinés dans les graphismes (titre…).
+

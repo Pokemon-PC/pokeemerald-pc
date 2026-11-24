@@ -61,6 +61,25 @@ Touches, taille de fenêtre, plein écran et volume se règlent dans **`config.i
 créé à côté de l'exe au premier lancement (noms de touches SDL, plusieurs par bouton
 séparés par des virgules).
 
+### Langue : anglais ou français
+
+Le jeu est en **anglais** (la décompilation est la version US). Pour le jouer en
+**français**, mettez la ROM de **votre propre** cartouche *Pokémon Version Émeraude*
+française (`.gba`, révision 0) à côté de l'exe : au lancement, ses textes remplacent
+les textes anglais (dialogues, menus, combats, noms de Pokémon, d'attaques, d'objets…).
+Le choix se fait dans `config.ini` :
+
+```
+[game]
+language = auto   ; auto (français si la ROM est trouvée), fr ou en
+rom =             ; chemin de la ROM si elle n'est pas à côté de l'exe
+```
+
+Rien du jeu français n'est dans le dépôt ni dans l'exe : seulement une table de
+positions (`src/platform_pc/lang/fr_bpef.tsv`). La ROM est vérifiée (CRC) ; une autre
+révision est refusée (le jeu reste en anglais). Environ 93 % des textes sont traduits ;
+les autres, et les textes dessinés dans les images, restent en anglais.
+
 Une manette reconnue par SDL fonctionne aussi (disposition Nintendo).
 Le jeu démarre en **mono** comme l'original (Options → Son → Stéréo).
 
@@ -76,6 +95,7 @@ Le jeu démarre en **mono** comme l'original (Options → Son → Stéréo).
 | `PEM_INPUT=400-404:START,1700-7400/25:A` | touches scriptées (`/P` = appui toutes les P images) |
 | `PEM_SHOT=900:titre.bmp` | capture d'une image |
 | `PEM_WAV=son.wav` | enregistrer le son |
+| `PEM_LANG=fr\|en`, `PEM_ROM=f` | langue, ROM française à utiliser |
 | `PEM_TRACE=1` | journal des changements de carte / position / contrôle |
 | `PEM_TEST=givemon@N,battle@N` | donner un Gobou, lancer un combat sauvage |
 | `PEM_REGS=N`, `PEM_PEEK=ADDR:LEN` | registres, VRAM, tâches ; mémoire brute (adresses de `nm`) |

@@ -239,6 +239,7 @@ static uint16_t scripted_input(uint64_t frame) {
 static void run_game(void *arg) {
     (void)arg;
     pc_crash_install();
+    pc_lang_apply();          /* French strings, before the snapshot */
     snapshot_game_data();
     if (setjmp(s_reset_jump) != 0) {
         memcpy(GAME_DATA_BEGIN, s_snapshot, s_snapshot_size);

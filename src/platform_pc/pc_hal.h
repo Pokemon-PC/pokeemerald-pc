@@ -8,6 +8,7 @@
 #define PEM_PC_HAL_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -97,5 +98,10 @@ bool pc_emulate_null_access(uint64_t *regs[16], uint64_t *rip, uint32_t *eflags,
 #ifdef __cplusplus
 }
 #endif
+
+/* lang_pc.c: English, or French from the player's own French ROM */
+void pc_lang_apply(void);
+const char *pc_lang_current(void);
+void pc_lang_make_writable(const void *p, size_t n);
 
 #endif /* PEM_PC_HAL_H */

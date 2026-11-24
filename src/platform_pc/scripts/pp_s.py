@@ -79,6 +79,7 @@ def main():
     ap.add_argument("--preproc")
     ap.add_argument("--coff", action="store_true", help="Windows objects")
     ap.add_argument("--raw", action="store_true", help="no preproc/cpp")
+    ap.add_argument("--lang-map", default="", help="French text map (scripts/lang/lang_build.py)")
     a = ap.parse_args(sys.argv[1:split])
     rest = sys.argv[split + 1:]
     src = os.path.relpath(rest[-1], a.root).replace("\\", "/")
@@ -102,6 +103,11 @@ def main():
         # cpp read stdin: list the headers with a separate -M pass on the source.
         deps = run([a.clang, "-M", "-x", "assembler-with-cpp", "-MT", a.out] + flags + [src])
     text = host_syntax(text, a.coff)
+    if a.lang_map and not a.raw:
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lang"))
+        import lang_build
+        section = '.section .rdata$pemlang1,"dr"' if a.coff else '.section pem_lang,"a"'
+        text = lang_build.patch_s(text, a.lang_map, section)
 
     os.makedirs(os.path.dirname(a.out) or ".", exist_ok=True)
     with open(a.dep, "wb") as f:

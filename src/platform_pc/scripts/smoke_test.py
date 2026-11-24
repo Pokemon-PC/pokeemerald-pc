@@ -166,7 +166,42 @@ def main_story(exe, work):
     return 0
 
 
+def main_french(exe, work, rom):
+    """--french: the same new game with the French text read from the
+    player's French ROM (PEM_FR_ROM at configure time; never in the repo)."""
+    rc, log = run_game(exe, work, dict(
+        PEM_LANG="fr", PEM_ROM=rom, PEM_EXIT_AFTER="13500", PEM_TEST="battle@10900",
+        PEM_INPUT="400-404:START,1400-1404:START,1700-7450/25:A,9000-9004:B,9100-9400:RIGHT,"
+                  "9800-10800/40:A,11400-13400/45:A",
+        PEM_SHOT="1500:menu_fr.bmp,1850:birch_fr.bmp,9650:town_fr.bmp,12100:battle_fr.bmp"))
+    errors = []
+    if rc != 0 or "[pem:crash]" in log or "[pem:hang]" in log:
+        errors.append(f"exit {rc}, crash/hang")
+    import re
+    m = re.search(r"lang: French from .* \((\d+) strings", log)
+    if not m or int(m.group(1)) < 12000:
+        errors.append("French text not loaded" if not m else f"only {m.group(1)} French strings")
+    for n in ("menu_fr", "birch_fr", "town_fr", "battle_fr"):
+        p = os.path.join(work, n + ".bmp")
+        if not os.path.exists(p) or colors(p) < 16:
+            errors.append(f"{n} frame missing or empty")
+    for e in errors:
+        print("FAIL", e)
+    if errors:
+        print(log[-3000:])
+        return 1
+    print(f"French test passed ({m.group(1)} strings)")
+    return 0
+
+
 def main():
+    if sys.argv[1] == "--french":
+        exe, work, rom = os.path.abspath(sys.argv[2]), os.path.abspath(sys.argv[3]), sys.argv[4]
+        os.makedirs(work, exist_ok=True)
+        for f in os.listdir(work):
+            if f.endswith((".bmp", ".wav", ".bin", ".rtc")):
+                os.remove(os.path.join(work, f))
+        return main_french(exe, work, rom)
     if sys.argv[1] in ("--save", "--story"):
         exe, work = os.path.abspath(sys.argv[2]), os.path.abspath(sys.argv[3])
         os.makedirs(work, exist_ok=True)
