@@ -45,3 +45,8 @@ prefabs.json
 /pokeemerald-*.png
 /pokeemerald_modern-*.png
 .porydaw/
+
+# PC port
+build-tools/
+build-pc/
+save.bin
