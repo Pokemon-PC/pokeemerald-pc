@@ -44,7 +44,7 @@ Audit détaillé : [docs/PORTING_API_AUDIT.md](docs/PORTING_API_AUDIT.md).
 | M3 Tout le jeu | tout `src/` compilé avec Clang (via preproc), données `.s` assemblées/converties, link neutralisé | `AgbMain()` tourne jusqu'à l'écran titre sans plantage | ✅ |
 | M4 2D | BG texte/affine, OAM, fenêtres, mélange, mosaïque, H-Blank/DMA H-Blank | intro + titre + monde affichés justes | ✅ (mosaïque à faire) |
 | M5 Son | mixeur m4a en C + canaux PSG | musique de l'intro juste | ✅ (écoute à confirmer) |
-| M6 Jeu & finitions | parties scriptées, bugs 64 bits, config, paquet | systèmes principaux testés en jeu | ☐ |
+| M6 Jeu & finitions | parties scriptées, bugs 64 bits, config, paquet | systèmes principaux testés en jeu | ⏳ (combats, menus, sauvegarde ✅ ; paquet/config à faire) |
 | M7 Multiplateforme | Linux/macOS, CI, vérification matching | CI verte 3 OS | ☐ |
 
 ## À faire par l'utilisateur (le moment venu)
@@ -187,3 +187,21 @@ Audit détaillé : [docs/PORTING_API_AUDIT.md](docs/PORTING_API_AUDIT.md).
   - Tests `ctest` : `hal_autotest`, `game_smoke` (jusqu'à la nouvelle partie, son) et
     **`game_world`** (camion → Bourg-en-Vol → maison).
   - Reste pour le rendu : mosaïque ; vérifier combats/menus (M6). Émulation NULL à porter sous Linux.
+- **2026-11-24 — M6 (première partie)** : combats, menus et sauvegarde vérifiés en jeu.
+  - **Combat** sauvage complet (crochet `PEM_TEST=battle@N` qui appelle
+    `BattleSetup_StartWildBattle` du jeu) : transition, intro, menu, attaques, PV, victoire, retour.
+  - **Menus** : Start (BAG, carte de dresseur, SAVE, OPTION), sac, carte de dresseur, équipe,
+    résumé (3 pages). **Sauvegarde** → `save.bin` → **reprise** (CONTINUE) au même endroit.
+  - Accès via NULL étendus aux **écritures** (ignorées, comme dans le BIOS GBA) et aux
+    lecture-modification-écriture (`nullread_pc.c`) : la carte de dresseur écrivait dans
+    ses données libérées depuis son rappel VBlank. Autotest : 62 vérifications.
+  - Classe « boucle qui attend la file DMA vidée en VBlank » traitée au point d'attente commun
+    (`IsDma3ManagerBusyWithBgCopy` fait passer une ligne quand la file est occupée) au lieu de
+    chaque boucle (carte, sac, carte régionale) : correctifs précédents retirés.
+  - Outils : `PEM_TRACE=1` (carte/position/contrôle à chaque changement), `PEM_TEST` en liste
+    (`givemon@N`), `scripts/contact_sheet.py` (planche PNG des captures, sans Pillow).
+  - Tests `ctest` : `hal_autotest`, `game_smoke`, `game_world` (+ combat), **`game_save`**
+    (menus, sauvegarde, reprise, équipe, résumé) — 4/4.
+  - `README_PC.md` : construire, jouer, variables d'environnement.
+  - Reste M6 : configuration des touches, paquet distribuable (exe + DLL éventuelles),
+    parcours plus long de l'histoire, mosaïque ; M7 : Linux/macOS (dont l'émulation NULL), CI.

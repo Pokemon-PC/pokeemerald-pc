@@ -2065,14 +2065,7 @@ static bool32 ReturnToFieldLink(u8 *state)
 
 static void DoMapLoadLoop(u8 *state)
 {
-#ifdef PLATFORM_PC
-    // A step waits for the DMA queue that the VBlank IRQ drains: on the GBA
-    // the IRQ fires while this loop runs, on PC time must be made to pass.
-    while (!LoadMapInStepsLocal(state, FALSE))
-        pc_advance_line();
-#else
     while (!LoadMapInStepsLocal(state, FALSE));
-#endif
 }
 
 static void ResetMirageTowerAndSaveBlockPtrs(void)

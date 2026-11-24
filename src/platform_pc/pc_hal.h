@@ -84,10 +84,11 @@ void pc_audio_shutdown(void);
 void pc_crash_install(void);   /* call on the game thread */
 void pc_watchdog_kick(void);   /* once per frame */
 void pc_log_backtrace(const char *tag);
-/* nullread_pc.c: emulates a faulting load/compare from the GBA BIOS range
- * (0..0x3FFF, i.e. through a NULL pointer) as reading 0. regs[] in x86
- * encoding order (rax, rcx, rdx, rbx, rsp, rbp, rsi, rdi, r8..r15). */
-bool pc_emulate_null_read(uint64_t *regs[16], uint64_t *rip, uint32_t *eflags, uintptr_t fault);
+/* nullread_pc.c: emulates a faulting access to the GBA BIOS range
+ * (0..0x3FFF, i.e. through a NULL pointer) as on the GBA: reads give 0,
+ * writes are dropped. regs[] in x86 encoding order (rax, rcx, rdx, rbx, rsp,
+ * rbp, rsi, rdi, r8..r15). */
+bool pc_emulate_null_access(uint64_t *regs[16], uint64_t *rip, uint32_t *eflags, uintptr_t fault, bool write);
 
 #ifdef __cplusplus
 }

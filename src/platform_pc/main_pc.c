@@ -152,7 +152,10 @@ static void dump_regs(uint64_t frame) {
     }
 }
 
+void pc_debug_frame(unsigned long long frame);
+
 static void frame_hook(uint64_t frame, const uint32_t *argb) {
+    pc_debug_frame(frame);
     if (s_shots) {
         char *list = strdup(s_shots), *save = NULL;
         for (char *tok = strtok_r(list, ",", &save); tok; tok = strtok_r(NULL, ",", &save)) {

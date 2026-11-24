@@ -37,7 +37,7 @@ static BOOL watch_value_suspicious(DWORD64 v) {
 
 /* Reports each emulated NULL-read site once (same stable addresses as the
  * crash reports: symbolize.py names them). */
-static void note_null_read(DWORD64 rip, uintptr_t addr, CONTEXT c) {
+static void note_null_read(DWORD64 rip, uintptr_t addr, bool is_write, CONTEXT c) {
     static DWORD64 seen[64];
     static int nseen;
     for (int i = 0; i < nseen; i++) {
@@ -48,8 +48,8 @@ static void note_null_read(DWORD64 rip, uintptr_t addr, CONTEXT c) {
     if (nseen < 64) {
         seen[nseen++] = rip;
     }
-    fprintf(stderr, "[pem:nullread] read at 0x%llX through NULL emulated as 0 (GBA: BIOS area):\n",
-            (unsigned long long)addr);
+    fprintf(stderr, "[pem:nullread] %s at 0x%llX through NULL emulated (GBA BIOS area: %s):\n",
+            is_write ? "write" : "read", (unsigned long long)addr, is_write ? "ignored" : "reads 0");
     print_backtrace(c, "nullread");
 }
 
@@ -66,7 +66,7 @@ static LONG WINAPI on_exception(EXCEPTION_POINTERS *ep) {
         return EXCEPTION_CONTINUE_EXECUTION;
     }
     if (code == EXCEPTION_ACCESS_VIOLATION && ep->ExceptionRecord->NumberParameters >= 2 &&
-        ep->ExceptionRecord->ExceptionInformation[0] == 0) {
+        ep->ExceptionRecord->ExceptionInformation[0] <= 1) {
         /* A read through NULL: the GBA reads its BIOS there (nullread_pc.c). */
         CONTEXT *c = ep->ContextRecord;
         uint64_t *regs[16] = { &c->Rax, &c->Rcx, &c->Rdx, &c->Rbx, &c->Rsp, &c->Rbp, &c->Rsi, &c->Rdi,
@@ -75,9 +75,10 @@ static LONG WINAPI on_exception(EXCEPTION_POINTERS *ep) {
         uintptr_t addr = (uintptr_t)ep->ExceptionRecord->ExceptionInformation[1];
         CONTEXT before = *c;
         uint32_t fl = (uint32_t)c->EFlags;
-        if (pc_emulate_null_read(regs, (uint64_t *)&c->Rip, &fl, addr)) {
+        bool is_write = ep->ExceptionRecord->ExceptionInformation[0] == 1;
+        if (pc_emulate_null_access(regs, (uint64_t *)&c->Rip, &fl, addr, is_write)) {
             c->EFlags = fl;
-            note_null_read(rip0, addr, before);
+            note_null_read(rip0, addr, is_write, before);
             return EXCEPTION_CONTINUE_EXECUTION;
         }
     }

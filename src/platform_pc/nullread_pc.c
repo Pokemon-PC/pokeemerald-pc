@@ -1,19 +1,25 @@
 /*
- * nullread_pc.c - reads through NULL behave as on the GBA.
+ * nullread_pc.c - accesses through NULL behave as on the GBA.
  *
  * On the GBA, address 0 is the BIOS: reading a field through a NULL pointer
- * (a freed screen's data read by a sprite or VBlank callback one frame too
- * late, ...) returns a value and the game goes on. Such bugs are spread over
- * the decompiled code. On PC the read faults. Rather than patching every
- * site, the crash handler calls pc_emulate_null_read(): if the faulting
- * instruction is a plain load or compare from an address in the GBA BIOS
- * range (0x0000-0x3FFF), it is emulated with the value 0 and execution goes
- * on after it. Every emulated site is reported once (with a backtrace), so
- * the bugs stay visible; anything else is still a crash.
+ * (a freed screen's data used by a sprite or VBlank callback one frame too
+ * late, ...) returns a value, and writing there is ignored (it is ROM). Such
+ * bugs are spread over the decompiled code; on PC the access faults. Rather
+ * than patching every site, the crash handler calls pc_emulate_null_access():
+ * if the faulting instruction is a simple x86 load, store, compare or
+ * read-modify-write on an address in the GBA BIOS range (0x0000-0x3FFF), it
+ * is emulated - memory reads as 0, writes are dropped, flags are computed as
+ * the instruction would - and execution goes on after it. Every emulated
+ * site is reported once (with a backtrace) so the bugs stay visible; any
+ * other instruction is still a crash.
  *
- * Supported x86-64 forms (memory operand only): MOV r,m (8A/8B), MOVZX
- * (0F B6/B7), MOVSX (0F BE/BF), MOVSXD (63), CMP m,imm (80/81/83 /7),
- * CMP m,r / r,m (38-3B), TEST m,imm (F6/F7 /0), TEST m,r (84/85).
+ * Forms (memory operand only):
+ *   loads   MOV r,m (8A/8B), MOVZX/MOVSX (0F B6/B7/BE/BF), MOVSXD (63)
+ *   stores  MOV m,r (88/89), MOV m,imm (C6/C7 /0)
+ *   compare CMP m,imm (80/81/83 /7), CMP m,r / r,m (38-3B),
+ *           TEST m,imm (F6/F7 /0), TEST m,r (84/85)
+ *   RMW     ADD/OR/AND/SUB/XOR m,imm (80/81/83) and m,r (00/01 08/09 20/21
+ *           28/29 30/31), INC/DEC m (FE/FF /0 /1)
  */
 #include "pc_hal.h"
 
@@ -31,6 +37,10 @@
 #define FL_OF 0x0800u
 #define FL_ARITH (FL_CF | FL_PF | FL_AF | FL_ZF | FL_SF | FL_OF)
 
+static uint64_t mask_of(int bits) {
+    return bits == 64 ? ~0ull : ((1ull << bits) - 1);
+}
+
 static uint32_t parity_flag(uint64_t v) {
     uint8_t b = (uint8_t)v;
     b ^= b >> 4;
@@ -39,33 +49,53 @@ static uint32_t parity_flag(uint64_t v) {
     return (b & 1) ? 0 : FL_PF;
 }
 
-/* Flags of (a - b) on `bits`-wide operands. */
-static uint32_t sub_flags(uint64_t a, uint64_t b, int bits) {
-    uint64_t mask = bits == 64 ? ~0ull : ((1ull << bits) - 1);
-    a &= mask;
-    b &= mask;
-    uint64_t r = (a - b) & mask;
-    uint64_t sign = 1ull << (bits - 1);
-    uint32_t f = 0;
-    if (a < b) f |= FL_CF;
-    if (r == 0) f |= FL_ZF;
-    if (r & sign) f |= FL_SF;
-    if (((a ^ b) & (a ^ r)) & sign) f |= FL_OF;
-    if (((a ^ b ^ r) & 0x10) != 0) f |= FL_AF;
-    return f | parity_flag(r);
-}
-
-static uint32_t logic_flags(uint64_t r, int bits) {
-    uint64_t mask = bits == 64 ? ~0ull : ((1ull << bits) - 1);
-    r &= mask;
-    uint32_t f = 0;
+static uint32_t result_flags(uint64_t r, int bits) {
+    r &= mask_of(bits);
+    uint32_t f = parity_flag(r);
     if (r == 0) f |= FL_ZF;
     if (r & (1ull << (bits - 1))) f |= FL_SF;
-    return f | parity_flag(r);
+    return f;
 }
 
-/* Writes `value` (already sign/zero extended) to register `reg` with x86-64
- * partial-register rules for the destination size. */
+/* Flags of a - b. */
+static uint32_t sub_flags(uint64_t a, uint64_t b, int bits) {
+    uint64_t m = mask_of(bits), sign = 1ull << (bits - 1);
+    a &= m;
+    b &= m;
+    uint64_t r = (a - b) & m;
+    uint32_t f = result_flags(r, bits);
+    if (a < b) f |= FL_CF;
+    if (((a ^ b) & (a ^ r)) & sign) f |= FL_OF;
+    if ((a ^ b ^ r) & 0x10) f |= FL_AF;
+    return f;
+}
+
+/* Flags of a + b. */
+static uint32_t add_flags(uint64_t a, uint64_t b, int bits) {
+    uint64_t m = mask_of(bits), sign = 1ull << (bits - 1);
+    a &= m;
+    b &= m;
+    uint64_t r = (a + b) & m;
+    uint32_t f = result_flags(r, bits);
+    if (r < a) f |= FL_CF;
+    if ((~(a ^ b) & (a ^ r)) & sign) f |= FL_OF;
+    if ((a ^ b ^ r) & 0x10) f |= FL_AF;
+    return f;
+}
+
+/* Flags of "0 op src" for the ALU group (reg field of 80/81/83). */
+static bool alu_flags(int alu, uint64_t src, int bits, uint32_t *flags) {
+    switch (alu) {
+    case 0: *flags = add_flags(0, src, bits); return true;     /* ADD */
+    case 1: *flags = result_flags(src, bits); return true;     /* OR  */
+    case 4: *flags = result_flags(0, bits); return true;       /* AND */
+    case 5: *flags = sub_flags(0, src, bits); return true;     /* SUB */
+    case 6: *flags = result_flags(src, bits); return true;     /* XOR */
+    case 7: *flags = sub_flags(0, src, bits); return true;     /* CMP */
+    default: return false;                                     /* ADC/SBB */
+    }
+}
+
 static void write_reg(uint64_t *regs[16], int reg, int bits, bool legacy_high8, uint64_t value) {
     if (bits == 8 && legacy_high8) {             /* AH, CH, DH, BH */
         uint64_t *r = regs[reg - 4];
@@ -85,11 +115,10 @@ static uint64_t read_reg(uint64_t *regs[16], int reg, int bits, bool legacy_high
     if (bits == 8 && legacy_high8) {
         return (*regs[reg - 4] >> 8) & 0xFF;
     }
-    uint64_t v = *regs[reg];
-    return bits == 64 ? v : v & ((1ull << bits) - 1);
+    return *regs[reg] & mask_of(bits);
 }
 
-bool pc_emulate_null_read(uint64_t *regs[16], uint64_t *rip, uint32_t *eflags, uintptr_t fault) {
+bool pc_emulate_null_access(uint64_t *regs[16], uint64_t *rip, uint32_t *eflags, uintptr_t fault, bool write) {
     if (fault >= GBA_BIOS_END) {
         return false;
     }
@@ -113,11 +142,10 @@ bool pc_emulate_null_read(uint64_t *regs[16], uint64_t *rip, uint32_t *eflags, u
         op2 = *p++;
     }
 
-    /* ModRM + SIB + displacement */
     uint8_t modrm = *p++;
-    int mod = modrm >> 6, reg = ((modrm >> 3) & 7) | (rexr ? 8 : 0), rm = modrm & 7;
+    int mod = modrm >> 6, sub = (modrm >> 3) & 7, reg = sub | (rexr ? 8 : 0), rm = modrm & 7;
     if (mod == 3) {
-        return false;                      /* register operand: cannot be the fault */
+        return false;                      /* register operand: not the faulting access */
     }
     if (rm == 4) {
         uint8_t sib = *p++;
@@ -133,19 +161,39 @@ bool pc_emulate_null_read(uint64_t *regs[16], uint64_t *rip, uint32_t *eflags, u
     uint32_t newflags = 0;
     bool setflags = false;
 
-    if (op2 < 0) {
-        switch (op) {
-        case 0x8A:                                         /* MOV r8, m8 */
-            write_reg(regs, reg, 8, high8, 0);
-            break;
-        case 0x8B:                                         /* MOV r, m */
+    if (op2 >= 0) {
+        if (write) return false;
+        switch (op2) {
+        case 0xB6: case 0xB7: case 0xBE: case 0xBF:        /* MOVZX / MOVSX */
             write_reg(regs, reg, opbits, false, 0);
             break;
-        case 0x63:                                         /* MOVSXD r64, m32 */
+        default:
+            return false;
+        }
+    } else {
+        switch (op) {
+        /* ---- loads ---- */
+        case 0x8A:
+            if (write) return false;
+            write_reg(regs, reg, 8, high8, 0);
+            break;
+        case 0x8B:
+            if (write) return false;
+            write_reg(regs, reg, opbits, false, 0);
+            break;
+        case 0x63:
+            if (write) return false;
             write_reg(regs, reg, rexw ? 64 : 32, false, 0);
             break;
-        case 0x80: case 0x81: case 0x83: {                 /* group 1, imm */
-            int sub = (modrm >> 3) & 7;
+        /* ---- stores: dropped ---- */
+        case 0x88: case 0x89:
+            break;
+        case 0xC6: case 0xC7:
+            if (sub != 0) return false;
+            p += op == 0xC6 ? 1 : (opbits == 16 ? 2 : 4);
+            break;
+        /* ---- ALU with immediate (CMP reads; others read-modify-write) ---- */
+        case 0x80: case 0x81: case 0x83: {
             int bits = op == 0x80 ? 8 : opbits;
             int64_t imm;
             if (op == 0x81) {
@@ -154,43 +202,52 @@ bool pc_emulate_null_read(uint64_t *regs[16], uint64_t *rip, uint32_t *eflags, u
             } else {
                 imm = (int8_t)*p++;
             }
-            if (sub != 7) return false;                    /* only CMP reads without writing */
-            newflags = sub_flags(0, (uint64_t)imm, bits);
+            if (!alu_flags(sub, (uint64_t)imm, bits, &newflags)) return false;
             setflags = true;
             break;
         }
-        case 0x38: case 0x39: {                            /* CMP m, r */
+        /* ---- ALU m, r (read-modify-write) ---- */
+        case 0x00: case 0x01: case 0x08: case 0x09: case 0x20: case 0x21:
+        case 0x28: case 0x29: case 0x30: case 0x31: {
+            int bits = (op & 1) ? opbits : 8;
+            uint64_t src = read_reg(regs, reg, bits, !(op & 1) && high8);
+            if (!alu_flags(op >> 3, src, bits, &newflags)) return false;
+            setflags = true;
+            break;
+        }
+        /* ---- compares ---- */
+        case 0x38: case 0x39: {
             int bits = op == 0x38 ? 8 : opbits;
             newflags = sub_flags(0, read_reg(regs, reg, bits, op == 0x38 && high8), bits);
             setflags = true;
             break;
         }
-        case 0x3A: case 0x3B: {                            /* CMP r, m */
+        case 0x3A: case 0x3B: {
             int bits = op == 0x3A ? 8 : opbits;
             newflags = sub_flags(read_reg(regs, reg, bits, op == 0x3A && high8), 0, bits);
             setflags = true;
             break;
         }
-        case 0x84: case 0x85:                              /* TEST m, r */
-            newflags = logic_flags(0, op == 0x84 ? 8 : opbits);
+        case 0x84: case 0x85:
+            newflags = result_flags(0, op == 0x84 ? 8 : opbits);
             setflags = true;
             break;
-        case 0xF6: case 0xF7: {                            /* TEST m, imm */
-            if (((modrm >> 3) & 7) != 0) return false;
+        case 0xF6: case 0xF7: {
+            if (sub != 0) return false;
             int bits = op == 0xF6 ? 8 : opbits;
             p += op == 0xF6 ? 1 : (bits == 16 ? 2 : 4);
-            newflags = logic_flags(0, bits);
+            newflags = result_flags(0, bits);
             setflags = true;
             break;
         }
-        default:
-            return false;
-        }
-    } else {
-        switch (op2) {
-        case 0xB6: case 0xB7: case 0xBE: case 0xBF:        /* MOVZX / MOVSX */
-            write_reg(regs, reg, opbits, false, 0);
+        /* ---- INC / DEC m (CF unchanged) ---- */
+        case 0xFE: case 0xFF: {
+            if (sub > 1) return false;
+            int bits = op == 0xFE ? 8 : opbits;
+            uint32_t f = sub == 0 ? add_flags(0, 1, bits) : sub_flags(0, 1, bits);
+            *eflags = (*eflags & ~(FL_ARITH & ~FL_CF)) | (f & ~FL_CF);
             break;
+        }
         default:
             return false;
         }

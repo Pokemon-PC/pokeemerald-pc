@@ -352,6 +352,10 @@ static void test_null_reads(void) {
     CHECK(b == 0 && h == 0 && w == 0 && q == 0 && sx == 0, "loads through NULL read 0 (%u %u %u %llu)",
           b, h, w, (unsigned long long)q);
     CHECK(null_read_cmp(p) == 2, "compare through NULL sees 0");
+    p->b = 7;                  /* writes are dropped (BIOS is ROM) */
+    p->w = 0x12345678;
+    p->h++;                    /* read-modify-write */
+    CHECK(p->b == 0 && p->w == 0 && p->h == 0, "writes through NULL are ignored");
 #else
     printf("skip: NULL-read emulation is Windows-only for now\n");
 #endif

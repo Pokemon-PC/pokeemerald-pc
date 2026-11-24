@@ -184,3 +184,9 @@ add_test(NAME game_world
          COMMAND ${Python3_EXECUTABLE} ${PEM_ROOT}/src/platform_pc/scripts/smoke_test.py --world
                  $<TARGET_FILE:pokeemerald> ${CMAKE_CURRENT_BINARY_DIR}/world)
 set_tests_properties(game_world PROPERTIES TIMEOUT 900)
+
+# Menus (bag, trainer card, party, summary), save, then continue the save.
+add_test(NAME game_save
+         COMMAND ${Python3_EXECUTABLE} ${PEM_ROOT}/src/platform_pc/scripts/smoke_test.py --save
+                 $<TARGET_FILE:pokeemerald> ${CMAKE_CURRENT_BINARY_DIR}/savetest)
+set_tests_properties(game_save PROPERTIES TIMEOUT 900)
