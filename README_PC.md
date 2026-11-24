@@ -18,7 +18,7 @@ SDL2, zlib et libpng sont téléchargés et compilés automatiquement par CMake.
 ## Prérequis (Linux)
 
 ```
-sudo apt install clang cmake ninja-build python3 binutils make libasound2-dev libpulse-dev libx11-dev libxext-dev libgl-dev
+sudo apt install clang cmake ninja-build python3 binutils make libpng-dev zlib1g-dev libasound2-dev libpulse-dev libx11-dev libxext-dev libgl-dev
 ```
 
 Mêmes commandes de construction (avec `python3`) ; l'exe s'appelle `build-pc/pokeemerald`.
