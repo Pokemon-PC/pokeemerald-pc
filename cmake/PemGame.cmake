@@ -169,7 +169,7 @@ add_executable(pokeemerald
     ${PEM_GAME_DATA_OBJS})
 target_link_libraries(pokeemerald PRIVATE pem_game pem_hal_game pem_hal pem_game_flags pem::SDL2main pem::SDL2)
 pem_low_address_link(pokeemerald)
-if(WIN32)
+if(WIN32 AND CMAKE_C_COMPILER_LINKER_ID STREQUAL "LLD")   # lld-only option (all undefined symbols)
     target_link_options(pokeemerald PRIVATE -Wl,--error-limit=0)
 endif()
 
