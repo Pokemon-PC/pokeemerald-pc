@@ -53,12 +53,15 @@ add_library(pem_hal STATIC
     ${PEM_PC_DIR}/gpu_pc.c
     ${PEM_PC_DIR}/dma_pc.c
     ${PEM_PC_DIR}/irq_pc.c
-    ${PEM_PC_DIR}/video_pc.c)
+    ${PEM_PC_DIR}/video_pc.c
+    ${PEM_PC_DIR}/crash_pc.c
+    ${PEM_PC_DIR}/timer_pc.c
+    ${PEM_PC_DIR}/audio_pc.c)
 target_include_directories(pem_hal PUBLIC ${PEM_PC_DIR})
 target_compile_definitions(pem_hal PUBLIC PLATFORM_PC=1)
 target_link_libraries(pem_hal PUBLIC pem::SDL2)
 if(WIN32)
-    target_link_libraries(pem_hal PUBLIC psapi)
+    target_link_libraries(pem_hal PUBLIC psapi dbghelp)
 else()
     target_link_libraries(pem_hal PUBLIC m)
 endif()
@@ -71,6 +74,7 @@ target_compile_options(pem_game_flags INTERFACE "SHELL:-iquote ${CMAKE_CURRENT_S
 target_compile_definitions(pem_game_flags INTERFACE MODERN=1 PLATFORM_PC=1)
 target_compile_options(pem_game_flags INTERFACE
     -fno-strict-aliasing -fwrapv -funsigned-char
+    -fms-extensions                           # PC_PTR32 = __ptr32 __uptr
     -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast
     -Wno-gnu-alignof-expression   # MODERN alignment asserts in gba/macro.h
     -Wno-macro-redefined)         # include/config.h sets NDEBUG itself
@@ -81,6 +85,9 @@ add_library(pem_hal_game STATIC
     ${PEM_PC_DIR}/flash_pc.c
     ${PEM_PC_DIR}/rtc_pc.c)
 target_link_libraries(pem_hal_game PUBLIC pem_hal PRIVATE pem_game_flags)
+
+# --- the game ---------------------------------------------------------
+include(cmake/PemGame.cmake)
 
 # --- M1: title screen graphics through the HAL ---------------------------
 add_executable(pem_m1_view ${PEM_PC_DIR}/m1_view.c)

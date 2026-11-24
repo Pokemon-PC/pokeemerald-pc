@@ -132,7 +132,10 @@ static void pace(void) {
 
 /* ---- the line loop ----------------------------------------------------- */
 
+#define CYCLES_PER_LINE 1232
+
 static void do_line(int line) {
+    pc_timers_step(CYCLES_PER_LINE);
     uint16_t stat = REG_DISPSTAT;
     pc_hw_set_vcount((uint16_t)line, false);
     if ((stat >> 8) == line && (stat & 0x20)) {
@@ -155,37 +158,62 @@ static void do_line(int line) {
     dispatch();   /* something enabled IME/IE with a flag pending */
 }
 
-void pc_wait_vblank(void) {
-    for (;;) {
-        int line = s_line;
-        s_line = (s_line + 1) % LINES_PER_FRAME;
-        if (line == PC_GBA_HEIGHT) {
-            pc_hw_set_vcount((uint16_t)line, false);
-            s_frames++;
-            pc_video_present(s_frame);
-            pc_flash_flush();
-            pace();
-            pc_hw_set_keys(pc_input_poll());
-            if (pc_quit_requested()) {
-                pc_log("quit requested");
-                exit(0);
-            }
-            pc_dma_on_vblank();
-            if (REG_DISPSTAT & 0x08) {
-                pc_irq_raise(F_VBLANK);
-            }
-            dispatch();
-            /* Line 160 also has its VCount check and HBlank. */
-            uint16_t stat = REG_DISPSTAT;
-            if ((stat >> 8) == line && (stat & 0x20)) {
-                pc_irq_raise(F_VCOUNT);
-            }
-            pc_hw_set_vcount((uint16_t)line, true);
-            if (REG_DISPSTAT & 0x10) {
-                pc_irq_raise(F_HBLANK);
-            }
-            return;
-        }
-        do_line(line);
+/* Line 160: the frame is complete, VBlank starts. */
+static void do_vblank_line(int line) {
+    pc_timers_step(CYCLES_PER_LINE);
+    pc_hw_set_vcount((uint16_t)line, false);
+    s_frames++;
+    pc_watchdog_kick();
+    pc_video_present(s_frame);
+    pc_flash_flush();
+    pace();
+    pc_hw_set_keys(pc_input_poll());
+    if (pc_quit_requested()) {
+        pc_log("quit requested");
+        exit(0);
     }
+    pc_dma_on_vblank();
+    if (REG_DISPSTAT & 0x08) {
+        pc_irq_raise(F_VBLANK);
+    }
+    dispatch();
+    /* Line 160 also has its VCount check and HBlank. */
+    uint16_t stat = REG_DISPSTAT;
+    if ((stat >> 8) == line && (stat & 0x20)) {
+        pc_irq_raise(F_VCOUNT);
+    }
+    pc_hw_set_vcount((uint16_t)line, true);
+    if (REG_DISPSTAT & 0x10) {
+        pc_irq_raise(F_HBLANK);
+    }
+}
+
+/* One scanline of time. Returns true when it was the start of VBlank. */
+static bool step_line(void) {
+    int line = s_line;
+    s_line = (s_line + 1) % LINES_PER_FRAME;
+    if (line == PC_GBA_HEIGHT) {
+        do_vblank_line(line);
+        return true;
+    }
+    do_line(line);
+    return false;
+}
+
+void pc_wait_vblank(void) {
+    while (!step_line()) {
+    }
+    /* On hardware the VBlank interrupt handler (register copies, DMA queue,
+     * sound) takes time: the main loop resumes on a later line, and code
+     * such as SetGpuReg() relies on VCOUNT being in 161..225 then (it writes
+     * registers directly instead of queueing them for the next VBlank). */
+    step_line();
+}
+
+void pc_advance_line(void) {
+    step_line();
+}
+
+uint16_t pc_vcount_for_game_code(void) {
+    return s_in_handler ? REG16(0x006) : (uint16_t)(PC_GBA_HEIGHT + 1);
 }

@@ -37,6 +37,17 @@ void pc_irq_raise(uint16_t flag);
  * This is what WaitForVBlank()/VBlankIntrWait() do on PC. */
 void pc_wait_vblank(void);
 uint64_t pc_frame_count(void);
+/* One scanline of time passes (rendering, IRQs, DMA). For game loops that
+ * busy-wait on a register the hardware changes by itself (REG_VCOUNT...). */
+void pc_advance_line(void);
+/* VCOUNT as seen by code deciding "is it safe to touch the display now":
+ * the real line inside IRQ handlers run by the line loop, otherwise 161
+ * (the main loop runs between frames on PC). */
+uint16_t pc_vcount_for_game_code(void);
+
+/* ---- timers (timer_pc.c) -------------------------------------------------- */
+void pc_timers_step(uint32_t cycles);
+void pc_timers_reset(void);
 
 /* ---- video and input (video_pc.c) ---------------------------------------- */
 bool pc_video_init(void);          /* PEM_HEADLESS=1: no window */
@@ -61,6 +72,18 @@ void pc_flash_flush(void);
 /* Host local time + an offset kept next to the save (set when the game
  * resets or sets the clock), like a cartridge battery. */
 void pc_rtc_set_path(const char *path);
+
+/* ---- sound output (audio_pc.c) -------------------------------------------- */
+void pc_audio_init(void);   /* PEM_MUTE=1: no device; PEM_WAV=file.wav: record */
+/* One VBlank of DirectSound (FIFO A = right, FIFO B = left, n samples at the
+ * engine rate) plus the PSG channels read from NR10-NR52. */
+void pc_audio_frame(const int8_t *right, const int8_t *left, int n);
+void pc_audio_shutdown(void);
+
+/* ---- crash reports and hang watchdog (crash_pc.c) ------------------------ */
+void pc_crash_install(void);   /* call on the game thread */
+void pc_watchdog_kick(void);   /* once per frame */
+void pc_log_backtrace(const char *tag);
 
 #ifdef __cplusplus
 }

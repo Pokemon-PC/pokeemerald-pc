@@ -85,7 +85,11 @@ bool8 RunScriptCommand(struct ScriptContext *ctx)
             if (ctx->scriptPtr == (const u8 *)gNullScriptPtr)
             {
                 while (1)
+#ifdef PLATFORM_PC
+                    pc_wait_vblank(); // HALT: wait for interrupts forever
+#else
                     asm("svc 2"); // HALT
+#endif
             }
 
             cmdCode = *(ctx->scriptPtr++);

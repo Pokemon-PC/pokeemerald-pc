@@ -76,10 +76,10 @@ struct MapLayout
 {
     /*0x00*/ s32 width;
     /*0x04*/ s32 height;
-    /*0x08*/ const u16 *border;
-    /*0x0C*/ const u16 *map;
-    /*0x10*/ const struct Tileset *primaryTileset;
-    /*0x14*/ const struct Tileset *secondaryTileset;
+    /*0x08*/ const u16 *PC_PTR32 border;
+    /*0x0C*/ const u16 *PC_PTR32 map;
+    /*0x10*/ const struct Tileset *PC_PTR32 primaryTileset;
+    /*0x14*/ const struct Tileset *PC_PTR32 secondaryTileset;
 };
 
 struct BackupMapLayout
@@ -104,7 +104,7 @@ struct ObjectEventTemplate
              //u16 padding2:8;
     /*0x0C*/ u16 trainerType;
     /*0x0E*/ u16 trainerRange_berryTreeId;
-    /*0x10*/ const u8 *script;
+    /*0x10*/ const u8 *PC_PTR32 script;
     /*0x14*/ u16 flagId;
     /*0x16*/ //u8 padding3[2];
 };
@@ -124,7 +124,7 @@ struct CoordEvent
     u8 elevation;
     u16 trigger;
     u16 index;
-    const u8 *script;
+    const u8 *PC_PTR32 script;
 };
 
 struct BgEvent
@@ -133,7 +133,7 @@ struct BgEvent
     u8 elevation;
     u8 kind; // The "kind" field determines how to access bgUnion union below.
     union {
-        const u8 *script;
+        const u8 *PC_PTR32 script;
         struct {
             u16 item;
             u16 hiddenItemId;
@@ -148,10 +148,10 @@ struct MapEvents
     u8 warpCount;
     u8 coordEventCount;
     u8 bgEventCount;
-    const struct ObjectEventTemplate *objectEvents;
-    const struct WarpEvent *warps;
-    const struct CoordEvent *coordEvents;
-    const struct BgEvent *bgEvents;
+    const struct ObjectEventTemplate *PC_PTR32 objectEvents;
+    const struct WarpEvent *PC_PTR32 warps;
+    const struct CoordEvent *PC_PTR32 coordEvents;
+    const struct BgEvent *PC_PTR32 bgEvents;
 };
 
 struct MapConnection
@@ -165,15 +165,15 @@ struct MapConnection
 struct MapConnections
 {
     s32 count;
-    const struct MapConnection *connections;
+    const struct MapConnection *PC_PTR32 connections;
 };
 
 struct MapHeader
 {
-    /* 0x00 */ const struct MapLayout *mapLayout;
-    /* 0x04 */ const struct MapEvents *events;
-    /* 0x08 */ const u8 *mapScripts;
-    /* 0x0C */ const struct MapConnections *connections;
+    /* 0x00 */ const struct MapLayout *PC_PTR32 mapLayout;
+    /* 0x04 */ const struct MapEvents *PC_PTR32 events;
+    /* 0x08 */ const u8 *PC_PTR32 mapScripts;
+    /* 0x0C */ const struct MapConnections *PC_PTR32 connections;
     /* 0x10 */ u16 music;
     /* 0x12 */ u16 mapLayoutId;
     /* 0x14 */ mapsec_u8_t regionMapSectionId;

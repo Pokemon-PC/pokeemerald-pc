@@ -92,8 +92,8 @@ struct CableClubPlayer
 #define FACING_FORCED_LEFT 9
 #define FACING_FORCED_RIGHT 10
 
-extern const struct MapLayout *const gMapLayouts[];
-extern const struct MapHeader *const *const gMapGroups[];
+extern const struct MapLayout *const PC_PTR32 gMapLayouts[];
+extern const struct MapHeader *const PC_PTR32 *const PC_PTR32 gMapGroups[];
 
 static void Overworld_ResetStateAfterWhiteOut(void);
 static void CB2_ReturnToFieldLocal(void);

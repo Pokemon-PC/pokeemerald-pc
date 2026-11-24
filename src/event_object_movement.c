@@ -8877,6 +8877,9 @@ static void ApplyLevitateMovement(u8 taskId)
     struct Sprite *sprite;
     struct Task *task = &gTasks[taskId];
 
+#ifdef PLATFORM_PC
+    objectEvent = NULL; // LoadWordFromTwoHalfwords only writes the low 32 bits
+#endif
     LoadWordFromTwoHalfwords(&task->data[0], (u32 *)&objectEvent); // load the map object pointer.
     sprite = &gSprites[objectEvent->spriteId];
 
@@ -8894,6 +8897,9 @@ static void DestroyLevitateMovementTask(u8 taskId)
     struct ObjectEvent *objectEvent;
     struct Task *task = &gTasks[taskId];
 
+#ifdef PLATFORM_PC
+    objectEvent = NULL; // LoadWordFromTwoHalfwords only writes the low 32 bits
+#endif
     LoadWordFromTwoHalfwords(&task->data[0], (u32 *)&objectEvent); // unused objectEvent
     DestroyTask(taskId);
 }

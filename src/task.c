@@ -18,6 +18,9 @@ void ResetTasks(void)
         gTasks[i].next = i + 1;
         gTasks[i].priority = -1;
         memset(gTasks[i].data, 0, sizeof(gTasks[i].data));
+#ifdef PLATFORM_PC
+        memset(gTasks[i].pcDataOverflow, 0, sizeof(gTasks[i].pcDataOverflow));
+#endif
     }
 
     gTasks[0].prev = HEAD_SENTINEL;
@@ -36,6 +39,9 @@ u8 CreateTask(TaskFunc func, u8 priority)
             gTasks[i].priority = priority;
             InsertTask(i);
             memset(gTasks[i].data, 0, sizeof(gTasks[i].data));
+#ifdef PLATFORM_PC
+            memset(gTasks[i].pcDataOverflow, 0, sizeof(gTasks[i].pcDataOverflow));
+#endif
             gTasks[i].isActive = TRUE;
             return i;
         }

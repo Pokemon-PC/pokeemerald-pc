@@ -627,6 +627,9 @@ static void Task_SetBuriedTrainerMovement(u8 taskId)
     struct Task *task = &gTasks[taskId];
     struct ObjectEvent *objEvent;
 
+#ifdef PLATFORM_PC
+    objEvent = NULL; // LoadWordFromTwoHalfwords only writes the low 32 bits
+#endif
     LoadWordFromTwoHalfwords((u16*) &task->tObjEvent, (u32 *)&objEvent);
     if (!task->data[7])
     {

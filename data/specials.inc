@@ -2,7 +2,11 @@
 	.if ALLOCATE_SPECIAL_TABLE
 	.global SPECIAL_\ptr
 	.set SPECIAL_\ptr, __special__
+#ifdef PLATFORM_PC
+	.8byte \ptr
+#else
 	.4byte \ptr
+#endif
 	.endif
 	.set SPECIAL_WAITSTATE_\ptr, \waitstate
 	.set __special__, __special__ + 1

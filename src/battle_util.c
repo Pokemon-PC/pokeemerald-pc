@@ -43,11 +43,11 @@ match the ROM; this is also why sSoundMovesTable's declaration is in the middle 
 functions instead of at the top of the file with the other declarations.
 */
 
-extern const u8 *const gBattleScriptsForMoveEffects[];
-extern const u8 *const gBattlescriptsForBallThrow[];
-extern const u8 *const gBattlescriptsForRunningByItem[];
-extern const u8 *const gBattlescriptsForUsingItem[];
-extern const u8 *const gBattlescriptsForSafariActions[];
+extern const u8 *const PC_PTR32 gBattleScriptsForMoveEffects[];
+extern const u8 *const PC_PTR32 gBattlescriptsForBallThrow[];
+extern const u8 *const PC_PTR32 gBattlescriptsForRunningByItem[];
+extern const u8 *const PC_PTR32 gBattlescriptsForUsingItem[];
+extern const u8 *const PC_PTR32 gBattlescriptsForSafariActions[];
 
 static const u8 sPkblToEscapeFactor[][3] = {
     {

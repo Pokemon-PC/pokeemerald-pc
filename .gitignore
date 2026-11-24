@@ -50,3 +50,4 @@ prefabs.json
 build-tools/
 build-pc/
 save.bin
+__pycache__/

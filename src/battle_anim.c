@@ -26,7 +26,7 @@
 #define ANIM_SPRITE_INDEX_COUNT 8
 
 extern const u16 gMovesWithQuietBGM[];
-extern const u8 *const gBattleAnims_Moves[];
+extern const u8 *const PC_PTR32 gBattleAnims_Moves[];
 
 static void Cmd_loadspritegfx(void);
 static void Cmd_unloadspritegfx(void);
@@ -205,7 +205,7 @@ void DoMoveAnim(u16 move)
     LaunchBattleAnimation(gBattleAnims_Moves, move, TRUE);
 }
 
-void LaunchBattleAnimation(const u8 *const animsTable[], u16 tableId, bool8 isMoveAnim)
+void LaunchBattleAnimation(const u8 *const PC_PTR32 animsTable[], u16 tableId, bool8 isMoveAnim)
 {
     s32 i;
 

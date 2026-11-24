@@ -83,6 +83,20 @@ def main():
     missing = sorted(d for d in deps
                      if (d.startswith(ASSETS) or d.endswith(gen_ext))
                      and not os.path.exists(os.path.join(ROOT, d)))
+    # Songs: sound/songs/midi/*.mid -> *.s (mid2agb), objects of their own in
+    # the ROM, so no source depends on them.
+    # Map data (mapjson): per-map header/events/connections and the tables,
+    # dependencies of data/maps.s and data/map_events.s in map_data_rules.mk.
+    map_targets = ["data/maps/connections.inc", "data/maps/groups.inc", "data/maps/events.inc",
+                   "data/maps/headers.inc", "data/layouts/layouts.inc", "data/layouts/layouts_table.inc"]
+    for mj in glob.glob("data/maps/*/map.json", root_dir=ROOT):
+        d = os.path.dirname(mj).replace("\\", "/")
+        map_targets += [f"{d}/header.inc", f"{d}/events.inc", f"{d}/connections.inc"]
+    missing += [t for t in map_targets if not os.path.exists(os.path.join(ROOT, t))]
+    for mid in glob.glob("sound/songs/midi/*.mid", root_dir=ROOT):
+        s = mid.replace("\\", "/")[:-4] + ".s"
+        if not os.path.exists(os.path.join(ROOT, s)):
+            missing.append(s)
     print(f"== {len(srcs)} sources, {len(deps)} dépendances, {len(missing)} fichiers à générer")
     if a.list:
         print("\n".join(missing))

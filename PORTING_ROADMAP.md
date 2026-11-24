@@ -41,9 +41,9 @@ Audit détaillé : [docs/PORTING_API_AUDIT.md](docs/PORTING_API_AUDIT.md).
 | M0 Audit | inventaire matériel / asm / 64 bits | `docs/PORTING_API_AUDIT.md` | ✅ |
 | M1 Squelette | CMake : outils natifs + données générées + HAL SDL2 | une image du jeu (PNG→4bpp→VRAM) affichée dans la fenêtre | ✅ |
 | M2 Couche matériel | carte mémoire, base fixe, BIOS C, DMA, IRQ/VBlank, touches, Flash, RTC | autotest CTest vert | ✅ |
-| M3 Tout le jeu | tout `src/` compilé avec Clang (via preproc), données `.s` assemblées/converties, link neutralisé | `AgbMain()` tourne jusqu'à l'écran titre sans plantage | ☐ |
+| M3 Tout le jeu | tout `src/` compilé avec Clang (via preproc), données `.s` assemblées/converties, link neutralisé | `AgbMain()` tourne jusqu'à l'écran titre sans plantage | ✅ |
 | M4 2D | BG texte/affine, OAM, fenêtres, mélange, mosaïque, H-Blank/DMA H-Blank | intro + titre + monde affichés justes | ☐ |
-| M5 Son | mixeur m4a en C + canaux PSG | musique de l'intro juste | ☐ |
+| M5 Son | mixeur m4a en C + canaux PSG | musique de l'intro juste | ✅ (écoute à confirmer) |
 | M6 Jeu & finitions | parties scriptées, bugs 64 bits, config, paquet | systèmes principaux testés en jeu | ☐ |
 | M7 Multiplateforme | Linux/macOS, CI, vérification matching | CI verte 3 OS | ☐ |
 
@@ -112,3 +112,59 @@ Audit détaillé : [docs/PORTING_API_AUDIT.md](docs/PORTING_API_AUDIT.md).
     une image identique au pixel près avec les fichiers produits par `make`.
   - Suite (M3) : compiler tout `src/` avec Clang via `preproc`, données `.s`
     (bytecode assemblé tel quel, tables typées → C), `SoftReset`, link neutralisé.
+- **2026-11-24 — M3 atteint** :
+  - Tout `src/*.c` compile avec Clang via `scripts/pp_c.py` (cpp | preproc) ; exclus/
+    remplacés : `agb_flash*.c` (→ `flash_pc.c`), `siirtc.c` (→ `rtc_pc.c`),
+    `librfu_intr.c`, `multiboot.c`, `libgcnmultiboot.s`, `rom_header.s` (→ `link_pc.c`),
+    `m4a_1.s` (→ `sound_pc.c` : table de sauts réelle, séquenceur/mixeur muets jusqu'à M5).
+  - Données `.s` : `scripts/pp_s.py` + **GNU as** (WinLibs ; l'assembleur LLVM ne sait pas
+    évaluer `.if label == .`). Différences ARM→x86 traitées côté PC : commentaires `@`,
+    `.word` = 4 octets (sinon pointeurs de musique tronqués à 16 bits), `.align N` = 2^N,
+    `%progbits`, `.size/.type` (COFF), `SPECIAL_*` définis localement (pas de reloc 16 bits COFF).
+  - **Tables `.s` typées** : `PC_PTR32` (= `__ptr32 __uptr`, `-fms-extensions`) garde les
+    pointeurs 32 bits des structures partagées avec l'asm (cartes, événements, en-têtes,
+    sons, `MusicPlayerTrack`) et des listes de scripts ; `layout_check_pc.c` vérifie à la
+    compilation les tailles GBA. Bonus : `SaveBlock1` garde le format GBA. Les tables de
+    **fonctions** (`gScriptCmdTable`, `gSpecials`, Cadeau Mystère) passent en `.8byte`
+    (appeler via un `__ptr32` fait planter Clang).
+  - Bugs 64 bits / portabilité corrigés (tous sous `PLATFORM_PC`) :
+    `struct ListMenu` posée sur `gTasks[].data` (48 > 32 → `pcDataOverflow`) ;
+    7 pointeurs chargés via `(u32 *)&ptr` (mis à NULL avant) ; `Clear64byte(mplayInfo)`
+    (taille GBA en dur → `memset(sizeof)`) ; tampon `librfu` découpé avec des décalages
+    GBA (→ `sizeof`, tampon 0x1800) et gestionnaire série recopié en RAM (→ variante ROM).
+  - Classe « registre attendu par une boucle » : `REG_VCOUNT` (son), minuteries (sans-fil) →
+    `pc_advance_line()` dans la boucle ; **minuteries émulées** (`timer_pc.c`).
+  - Modèle temporel : `pc_wait_vblank()` rend la main à la ligne 161 (après le gestionnaire
+    VBlank, comme sur GBA) et `SetGpuReg` voit « VBlank » hors gestionnaires d'IRQ (le code
+    de la boucle principale tourne entre deux images sur PC) : écran de copyright corrigé.
+  - Outils : gestionnaire de plantage + chien de garde (`crash_pc.c`, `PEM_HANG_EXIT=1`),
+    `scripts/symbolize.py`, point d'arrêt matériel `PEM_WATCH=0x… PEM_WATCH_LEN=2
+    PEM_WATCH_ALL=1`, `PEM_INPUT=400-405:START`, `PEM_SHOT=F:x.bmp`, `PEM_REGS=F1,F2`.
+  - **Vu en jeu** (captures) : copyright → intro (Game Freak, Flygon en transparence,
+    ondes, herbes) → logo de l'écran titre, 1 800 images sans plantage ni blocage.
+  - Limite connue (M5) : l'écran titre retourne à l'intro dès que la musique « finit »
+    (`gMPlayInfo_BGM.status == 0`) ; sans séquenceur elle finit tout de suite.
+  - Suite : M4 (rendu complet de l'écran titre, sprites, monde) et surtout **M5** (porter
+    `m4a_1.s` en C : séquenceur `MPlayMain`/`ply_*`, mixeur `SoundMain`, sortie SDL).
+- **2026-11-24 — M5 atteint** (fait avant M4 : sans séquenceur, l'écran titre revenait à
+  l'intro et bloquait tout) :
+  - `sound_pc.c` : `src/m4a_1.s` transcrit en C routine par routine — séquenceur
+    `MPlayMain` (tempo, commandes, durées de notes, LFO, volume/hauteur), toutes les
+    commandes `ply_*`, `ply_note` (allocation des canaux par priorité, voix « key split »
+    et « rythme »), `TrackStop`, `RealClearChain`, table de sauts ; mixeur `SoundMain`
+    (enveloppe ADSR, volume maître, rééchantillonnage interpolé sur 23 bits, échantillons
+    DPCM compressés et inversés — les 388 cris —, boucles, réverbération, mélange 8 bits
+    qui déborde comme sur GBA) ; `m4aSoundVSync`.
+  - `audio_pc.c` : sortie SDL 48 kHz (latence bornée) + **les 4 canaux PSG** synthétisés
+    depuis NR10-NR52 (carrés + balayage, onde, bruit, séquenceur 512 Hz : longueur,
+    balayage, enveloppe ; bit de déclenchement NRx4 effacé après lecture) ; routage et
+    volumes `SOUNDCNT_L/H`. `PEM_MUTE=1`, `PEM_WAV=fichier.wav` (enregistrement).
+  - Constat : sortie gauche = droite… parce qu'Émeraude démarre en **mono**
+    (`optionsSound = OPTIONS_SOUND_MONO`, `SOUNDCNT_H = 0x3302`) — comportement d'origine.
+  - Vérifié : enregistrement de l'intro non muet, sans saturation ; contenu tonal (70 % de
+    l'énergie sur 5 notes d'une même gamme majeure) ; l'écran titre tient et attend Start ;
+    **Start → menu principal → A → début de partie avec le Prof. Seko**.
+  - Test `ctest` **`game_smoke`** : démarre le jeu jusqu'à la nouvelle partie avec son ;
+    validé en remettant le séquenceur muet (2 échecs détectés).
+  - Reste : écoute par l'utilisateur ; ~~texte~~ → **M4** : le texte des menus et des
+    dialogues ne s'affiche pas (menu principal bleu vide, pas de boîte de dialogue).

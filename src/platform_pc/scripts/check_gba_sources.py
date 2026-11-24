@@ -79,7 +79,17 @@ def strip_pc(text):
 def norm(text):
     text = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
     text = re.sub(r"//[^\n]*", " ", text)
-    return re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"\s+", " ", text).strip()
+    return re.sub(r"\s*\*\s*", "*", text)   # 'u8 * p' == 'u8 *p'
+
+
+def gba(text):
+    """The GBA view of a source: PLATFORM_PC branches removed, and the
+    PC_PTR32 annotation (defined empty on the GBA) dropped."""
+    text = strip_pc(text)
+    text = re.sub(r"^\s*#\s*define\s+PC_PTR32\s*$", "", text, flags=re.M)
+    text = re.sub(r"\bPC_PTR32\b", "", text)
+    return norm(text)
 
 
 MAKEFILE_ALLOWED = (
@@ -115,7 +125,7 @@ def main():
         if not rel.endswith(SOURCE_EXT):
             bad.append(("non-source change", rel))
             continue
-        if norm(strip_pc(cur)) != norm(orig):
+        if gba(cur) != norm(orig):
             bad.append(("differs", rel))
     for kind, rel in bad:
         print(kind, rel)

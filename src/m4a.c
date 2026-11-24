@@ -421,10 +421,18 @@ void SampleFreqSet(u32 freq)
     m4aSoundVSyncOn();
 
     while (*(vu8 *)REG_ADDR_VCOUNT == 159)
+#ifdef PLATFORM_PC
+        pc_advance_line(); // the line counter only moves when time does
+#else
         ;
+#endif
 
     while (*(vu8 *)REG_ADDR_VCOUNT != 159)
+#ifdef PLATFORM_PC
+        pc_advance_line();
+#else
         ;
+#endif
 
     REG_TM0CNT_H = TIMER_ENABLE | TIMER_1CLK;
 }
@@ -579,7 +587,13 @@ void MPlayOpen(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *track
 
     soundInfo->ident++;
 
+#ifdef PLATFORM_PC
+    // struct MusicPlayerInfo is 0x40 bytes on the GBA (cleared whole), larger
+    // with 64-bit pointers.
+    memset(mplayInfo, 0, sizeof(*mplayInfo));
+#else
     Clear64byte(mplayInfo);
+#endif
 
     mplayInfo->tracks = tracks;
     mplayInfo->trackCount = trackCount;

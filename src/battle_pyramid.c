@@ -40,7 +40,7 @@
 
 #define NUM_LAYOUT_OFFSETS 8
 
-extern const struct MapLayout *const gMapLayouts[];
+extern const struct MapLayout *const PC_PTR32 gMapLayouts[];
 
 struct PyramidWildMon
 {

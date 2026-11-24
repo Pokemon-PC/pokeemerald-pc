@@ -77,7 +77,12 @@ struct RfuDebug
     u8 unused4[88];
 };
 
+#ifdef PLATFORM_PC
+// The library's structs are larger with 64-bit pointers (see rfu_initializeAPI).
+COMMON_DATA u32 gRfuAPIBuffer[0x1800 / 4] = {0};
+#else
 COMMON_DATA u32 gRfuAPIBuffer[RFU_API_BUFF_SIZE_RAM / 4] = {0};
+#endif
 COMMON_DATA struct RfuManager gRfu = {0};
 
 static u8 sHeldKeyCount;
@@ -328,7 +333,11 @@ void InitRFU(void)
 
 void InitRFUAPI(void)
 {
+#ifdef PLATFORM_PC
+    if (!rfu_initializeAPI((void *)gRfuAPIBuffer, sizeof(gRfuAPIBuffer), &gIntrTable[1], FALSE))
+#else
     if (!rfu_initializeAPI((void *)gRfuAPIBuffer, sizeof(gRfuAPIBuffer), &gIntrTable[1], TRUE))
+#endif
     {
         gLinkType = 0;
         ClearSavedLinkPlayers();

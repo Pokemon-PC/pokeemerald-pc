@@ -65,8 +65,8 @@ static EWRAM_DATA u16 sFieldEffectScriptId = 0;
 static u8 sBrailleWindowId;
 
 extern const SpecialFunc gSpecials[];
-extern const u8 *gStdScripts[];
-extern const u8 *gStdScripts_End[];
+extern const u8 *PC_PTR32 gStdScripts[];
+extern const u8 *PC_PTR32 gStdScripts_End[];
 
 static void CloseBrailleWindow(void);
 
@@ -232,7 +232,7 @@ bool8 ScrCmd_vcall_if(struct ScriptContext *ctx)
 bool8 ScrCmd_gotostd(struct ScriptContext *ctx)
 {
     u8 index = ScriptReadByte(ctx);
-    const u8 **ptr = &gStdScripts[index];
+    const u8 *PC_PTR32 *ptr = &gStdScripts[index];
 
     if (ptr < gStdScripts_End)
         ScriptJump(ctx, *ptr);
@@ -242,7 +242,7 @@ bool8 ScrCmd_gotostd(struct ScriptContext *ctx)
 bool8 ScrCmd_callstd(struct ScriptContext *ctx)
 {
     u8 index = ScriptReadByte(ctx);
-    const u8 **ptr = &gStdScripts[index];
+    const u8 *PC_PTR32 *ptr = &gStdScripts[index];
 
     if (ptr < gStdScripts_End)
         ScriptCall(ctx, *ptr);
@@ -256,7 +256,7 @@ bool8 ScrCmd_gotostd_if(struct ScriptContext *ctx)
 
     if (sScriptConditionTable[condition][ctx->comparisonResult] == 1)
     {
-        const u8 **ptr = &gStdScripts[index];
+        const u8 *PC_PTR32 *ptr = &gStdScripts[index];
         if (ptr < gStdScripts_End)
             ScriptJump(ctx, *ptr);
     }
@@ -270,7 +270,7 @@ bool8 ScrCmd_callstd_if(struct ScriptContext *ctx)
 
     if (sScriptConditionTable[condition][ctx->comparisonResult] == 1)
     {
-        const u8 **ptr = &gStdScripts[index];
+        const u8 *PC_PTR32 *ptr = &gStdScripts[index];
         if (ptr < gStdScripts_End)
             ScriptCall(ctx, *ptr);
     }

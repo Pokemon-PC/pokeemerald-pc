@@ -239,7 +239,7 @@ static u8 sActiveList[32];
 extern struct CompressedSpritePalette gMonPaletteTable[]; // GF made a mistake and did not extern it as const.
 extern const struct CompressedSpritePalette gTrainerFrontPicPaletteTable[];
 extern const struct CompressedSpriteSheet gTrainerFrontPicTable[];
-extern u8 *gFieldEffectScriptPointers[];
+extern u8 *PC_PTR32 gFieldEffectScriptPointers[];
 extern const struct SpriteTemplate *const gFieldEffectObjectTemplatePointers[];
 
 static const u32 sNewGameBirch_Gfx[] = INCGFX_U32("graphics/birch_speech/birch.png", ".4bpp");
@@ -2713,6 +2713,9 @@ static void FieldMoveShowMonOutdoorsEffect_RestoreBg(struct Task *task)
 static void FieldMoveShowMonOutdoorsEffect_End(struct Task *task)
 {
     IntrCallback callback;
+#ifdef PLATFORM_PC
+    callback = NULL; // LoadWordFromTwoHalfwords only writes the low 32 bits
+#endif
     LoadWordFromTwoHalfwords((u16 *)&task->data[13], (u32 *)&callback);
     SetVBlankCallback(callback);
     InitTextBoxGfxAndPrinters();
@@ -2725,6 +2728,9 @@ static void VBlankCB_FieldMoveShowMonOutdoors(void)
 {
     IntrCallback callback;
     struct Task *task = &gTasks[FindTaskIdByFunc(Task_FieldMoveShowMonOutdoors)];
+#ifdef PLATFORM_PC
+    callback = NULL; // LoadWordFromTwoHalfwords only writes the low 32 bits
+#endif
     LoadWordFromTwoHalfwords((u16 *)&task->data[13], (u32 *)&callback);
     callback();
     SetGpuReg(REG_OFFSET_WIN0H, task->tWinHoriz);
@@ -2842,6 +2848,9 @@ static void FieldMoveShowMonIndoorsEffect_End(struct Task *task)
     u16 bg0cnt;
     bg0cnt = (REG_BG0CNT >> 8) << 11;
     CpuFill32(0, (void *)VRAM + bg0cnt, 0x800);
+#ifdef PLATFORM_PC
+    intrCallback = NULL; // LoadWordFromTwoHalfwords only writes the low 32 bits
+#endif
     LoadWordFromTwoHalfwords((u16 *)&task->data[13], (u32 *)&intrCallback);
     SetVBlankCallback(intrCallback);
     InitTextBoxGfxAndPrinters();
@@ -2855,6 +2864,9 @@ static void VBlankCB_FieldMoveShowMonIndoors(void)
     IntrCallback intrCallback;
     struct Task *task;
     task = &gTasks[FindTaskIdByFunc(Task_FieldMoveShowMonIndoors)];
+#ifdef PLATFORM_PC
+    intrCallback = NULL; // LoadWordFromTwoHalfwords only writes the low 32 bits
+#endif
     LoadWordFromTwoHalfwords((u16 *)&task->data[13], (u32 *)&intrCallback);
     intrCallback();
     SetGpuReg(REG_OFFSET_BG0HOFS, task->tBgHoriz);

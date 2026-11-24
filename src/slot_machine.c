@@ -1129,6 +1129,9 @@ static void SlotMachine_InitFromTask(void)
 {
     struct Task *task = &gTasks[FindTaskIdByFunc(SlotMachineDummyTask)];
     sSlotMachine->machineId = task->tMachineId;
+#ifdef PLATFORM_PC
+    sSlotMachine->prevMainCb = NULL; // LoadWordFromTwoHalfwords only writes the low 32 bits
+#endif
     LoadWordFromTwoHalfwords((u16 *)&task->tExitCallback, (u32 *)&sSlotMachine->prevMainCb);
 }
 

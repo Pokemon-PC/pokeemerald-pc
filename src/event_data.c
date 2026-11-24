@@ -27,7 +27,7 @@ EWRAM_DATA u16 gSpecialVar_MonBoxPos = 0;
 EWRAM_DATA u16 gSpecialVar_Unused_0x8014 = 0;
 EWRAM_DATA static u8 sSpecialFlags[SPECIAL_FLAGS_SIZE] = {0};
 
-extern u16 *const gSpecialVars[];
+extern u16 *const PC_PTR32 gSpecialVars[];
 
 void InitEventData(void)
 {

@@ -41,7 +41,7 @@ in order to read the next command correctly. refer to battle_ai_scripts.s for th
 AI scripts.
 */
 
-extern const u8 *const gBattleAI_ScriptsTable[];
+extern const u8 *const PC_PTR32 gBattleAI_ScriptsTable[];
 
 static u8 ChooseMoveOrAction_Singles(void);
 static u8 ChooseMoveOrAction_Doubles(void);

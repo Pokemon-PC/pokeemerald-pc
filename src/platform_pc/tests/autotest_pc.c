@@ -188,7 +188,7 @@ static void test_dma_and_irq(void) {
     CHECK(s_vblanks == v0 + 1, "one VBlank IRQ per wait (%d)", s_vblanks - v0);
     CHECK(s_vcounts == c0 + 1, "one VCount(150) IRQ per frame (%d)", s_vcounts - c0);
     CHECK(s_hblanks - h0 == 228, "one HBlank IRQ per line (%d)", s_hblanks - h0);
-    CHECK(REG_VCOUNT == 160, "returns at the start of VBlank (VCOUNT=%d)", REG_VCOUNT);
+    CHECK(REG_VCOUNT == 161, "returns just after the VBlank IRQ, line 161 (VCOUNT=%d)", REG_VCOUNT);
     CHECK(REG_DISPSTAT & DISPSTAT_VBLANK, "VBlank flag set");
 
     /* Lines 161..227 of the previous frame came first, then 0..159. */

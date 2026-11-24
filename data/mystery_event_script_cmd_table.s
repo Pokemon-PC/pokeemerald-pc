@@ -2,6 +2,25 @@
 
 	.align 2
 gMysteryEventScriptCmdTable::
+#ifdef PLATFORM_PC
+	.8byte MEScrCmd_nop                 @ 0x00
+	.8byte MEScrCmd_checkcompat         @ 0x01
+	.8byte MEScrCmd_end                 @ 0x02
+	.8byte MEScrCmd_setmsg              @ 0x03
+	.8byte MEScrCmd_setstatus           @ 0x04
+	.8byte MEScrCmd_runscript           @ 0x05
+	.8byte MEScrCmd_initramscript       @ 0x06
+	.8byte MEScrCmd_setenigmaberry      @ 0x07
+	.8byte MEScrCmd_giveribbon          @ 0x08
+	.8byte MEScrCmd_givenationaldex     @ 0x09
+	.8byte MEScrCmd_addrareword         @ 0x0a
+	.8byte MEScrCmd_setrecordmixinggift @ 0x0b
+	.8byte MEScrCmd_givepokemon         @ 0x0c
+	.8byte MEScrCmd_addtrainer          @ 0x0d
+	.8byte MEScrCmd_enableresetrtc      @ 0x0e
+	.8byte MEScrCmd_checksum            @ 0x0f
+	.8byte MEScrCmd_crc                 @ 0x10
+#else
 	.4byte MEScrCmd_nop                 @ 0x00
 	.4byte MEScrCmd_checkcompat         @ 0x01
 	.4byte MEScrCmd_end                 @ 0x02
@@ -19,4 +38,5 @@ gMysteryEventScriptCmdTable::
 	.4byte MEScrCmd_enableresetrtc      @ 0x0e
 	.4byte MEScrCmd_checksum            @ 0x0f
 	.4byte MEScrCmd_crc                 @ 0x10
+#endif
 gMysteryEventScriptCmdTableEnd::
