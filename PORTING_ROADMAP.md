@@ -259,3 +259,9 @@ Audit détaillé : [docs/PORTING_API_AUDIT.md](docs/PORTING_API_AUDIT.md).
     pour octet (captures de `game_story`) ; test `game_french` si `-DPEM_FR_ROM=…`.
   - Reste : ~7 % de textes en anglais, textes dessinés dans les graphismes (titre…).
 
+- **2026-11-25** — Dossier de ROM commun : `config.ini [game] rom_dir = …` (aussi lu sous
+  `[options]`, la place de la clé dans HGSS) ou `PEM_ROM_DIR`. Cherché après l'exe et le
+  dossier courant ; la ROM française est reconnue par son en-tête (`BPEF`), pas par son nom.
+  Sur la machine de dev toutes les ROM sont dans `D:\LUC\pokemonall\roms\` (Émeraude FR :
+  `Pokemon - Version Emeraude (France).gba`, ex `roms/gen3_gba/`), et `build-pc/config.ini`
+  y pointe. Vérifié : français (ROM trouvée dans `rom_dir`) et anglais.

@@ -13,7 +13,8 @@ launcher arrive. Même décision pour HeartGold / SoulSilver
 |---|---|---|
 | Langue | variable d'environnement `PEM_LANG=en\|fr` | priorité sur `config.ini` |
 | | `config.ini` → `[game] language = auto\|en\|fr` | `auto` = français si la ROM française est trouvée |
-| ROM française | variable `PEM_ROM=chemin.gba` ou `[game] rom = chemin` | sinon : un `*.gba` à côté de l'exe ou dans le dossier courant |
+| ROM française | variable `PEM_ROM=chemin.gba` ou `[game] rom = chemin` | sinon : un `*.gba` à côté de l'exe ou dans le dossier courant, puis dans le dossier de ROM |
+| Dossier de ROM commun | `config.ini` → `[game] rom_dir = D:\LUC\pokemonall\roms` (aussi lu sous `[options]`, comme HGSS), ou `PEM_ROM_DIR=dossier` | ROM choisie d'après l'en-tête (code `BPEF`), jamais d'après le nom ; chemin relatif = depuis le dossier de l'exe |
 | Sauvegarde | `PEM_SAVE=fichier` | défaut `save.bin` à côté de l'exe ; même sauvegarde pour les deux langues |
 | Fenêtre | `PEM_SCALE=n`, `[video] scale`, `fullscreen` | |
 

@@ -11,7 +11,9 @@
  *
  * config.ini [game] language = auto | en | fr   (auto: French if the ROM is
  * found), [game] rom = path of the French ROM (default: a *.gba next to the
- * executable or in the working folder). PEM_LANG / PEM_ROM override them.
+ * executable or in the working folder, else in [game] rom_dir, the folder
+ * shared by all the ports' ROMs). PEM_LANG / PEM_ROM / PEM_ROM_DIR override
+ * them. ROMs are recognised by their header (game code BPEF), not their name.
  */
 #include "pc_hal.h"
 #include "platform_pc.h"
@@ -138,6 +140,34 @@ static uint8_t *find_in_dir(const char *dir, char *found, size_t n) {
 #endif
 }
 
+/* The shared ROM folder: PEM_ROM_DIR, else config.ini [game] rom_dir (or
+ * [options] rom_dir, the key's place in the DS ports). Relative paths are
+ * taken from the executable's folder. "" if none. */
+static void rom_dir(char *out, size_t n) {
+    const char *d = getenv("PEM_ROM_DIR");
+    if (d == NULL || *d == '\0') {
+        d = pc_config_get("game", "rom_dir", NULL);
+    }
+    if (d == NULL || *d == '\0') {
+        d = pc_config_get("options", "rom_dir", NULL);
+    }
+    out[0] = '\0';
+    if (d == NULL || *d == '\0') {
+        return;
+    }
+    if (d[0] == '/' || d[0] == '\\' || d[1] == ':') {
+        snprintf(out, n, "%s", d);
+    } else {
+        char *base = SDL_GetBasePath();
+        snprintf(out, n, "%s%s", base != NULL ? base : "", d);
+        SDL_free(base);
+    }
+    size_t l = strlen(out);
+    while (l > 1 && out[l - 2] != ':' && (out[l - 1] == '/' || out[l - 1] == '\\')) {
+        out[--l] = '\0';
+    }
+}
+
 static uint8_t *find_french_rom(char *path, size_t n) {
     const char *forced = getenv("PEM_ROM");
     if (forced == NULL || *forced == '\0') {
@@ -159,6 +189,18 @@ static uint8_t *find_french_rom(char *path, size_t n) {
     }
     if (rom == NULL) {
         rom = find_in_dir(".", path, n);
+    }
+    if (rom == NULL) {
+        char dir[1024];
+        rom_dir(dir, sizeof dir);
+        if (dir[0] != '\0') {
+            rom = find_in_dir(dir, path, n);
+            if (rom != NULL) {
+                pc_log("lang: French ROM found in rom_dir %s", dir);
+            } else {
+                pc_log("lang: no French Emerald ROM (BPEF) in rom_dir %s", dir);
+            }
+        }
     }
     return rom;
 }
@@ -203,7 +245,7 @@ void pc_lang_apply(void) {
     if (rom == NULL) {
         if (SDL_strcasecmp(want, "fr") == 0) {
             pc_log("lang: French asked, but no French Emerald ROM (BPEF) found next to the game:"
-                   " English. Put your own ROM (*.gba) next to the executable, or set [game] rom.");
+                   " English. Put your own ROM (*.gba) next to the executable, or set [game] rom or rom_dir.");
         } else {
             pc_log("lang: English (no French ROM found)");
         }

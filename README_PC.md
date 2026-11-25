@@ -73,7 +73,12 @@ Le choix se fait dans `config.ini` :
 [game]
 language = auto   ; auto (français si la ROM est trouvée), fr ou en
 rom =             ; chemin de la ROM si elle n'est pas à côté de l'exe
+rom_dir =         ; dossier commun de vos ROM (ex. D:\Jeux\roms)
 ```
+
+Avec `rom_dir`, toutes vos ROM peuvent rester dans un seul dossier : quand aucune
+ROM n'est à côté de l'exe, le jeu y prend la ROM française d'après son en-tête
+(code `BPEF`), quel que soit le nom du fichier ; les autres ROM sont ignorées.
 
 Rien du jeu français n'est dans le dépôt ni dans l'exe : seulement une table de
 positions (`src/platform_pc/lang/fr_bpef.tsv`). La ROM est vérifiée (CRC) ; une autre
@@ -95,7 +100,7 @@ Le jeu démarre en **mono** comme l'original (Options → Son → Stéréo).
 | `PEM_INPUT=400-404:START,1700-7400/25:A` | touches scriptées (`/P` = appui toutes les P images) |
 | `PEM_SHOT=900:titre.bmp` | capture d'une image |
 | `PEM_WAV=son.wav` | enregistrer le son |
-| `PEM_LANG=fr\|en`, `PEM_ROM=f` | langue, ROM française à utiliser |
+| `PEM_LANG=fr\|en`, `PEM_ROM=f`, `PEM_ROM_DIR=d` | langue, ROM française à utiliser, dossier de ROM |
 | `PEM_TRACE=1` | journal des changements de carte / position / contrôle |
 | `PEM_TEST=givemon@N,battle@N` | donner un Gobou, lancer un combat sauvage |
 | `PEM_REGS=N`, `PEM_PEEK=ADDR:LEN` | registres, VRAM, tâches ; mémoire brute (adresses de `nm`) |
