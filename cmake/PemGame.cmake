@@ -11,7 +11,7 @@ set(PEM_EXE_SUFFIX "")
 if(WIN32)
     set(PEM_EXE_SUFFIX ".exe")
 endif()
-set(PEM_PREPROC ${PEM_ROOT}/tools/preproc/preproc${PEM_EXE_SUFFIX})
+set(PEM_PREPROC ${PEM_TOOLS_ROOT}/tools/preproc/preproc${PEM_EXE_SUFFIX})
 if(NOT EXISTS ${PEM_PREPROC})
     message(FATAL_ERROR "tools not built: cmake -S src/platform_pc/tools -B build-tools && cmake --build build-tools")
 endif()
@@ -38,6 +38,9 @@ set(PEM_CPP_FLAGS
     -DMODERN=1 -DPLATFORM_PC=1
     -fms-extensions -funsigned-char    # same as the compile step (system headers test them)
     -Wno-trigraphs)
+if(PEM_FANGAME)
+    list(APPEND PEM_CPP_FLAGS -DPEM_FANGAME=1)
+endif()
 
 # All writable game variables go to one section (snapshot for soft reset,
 # see src/platform_pc/main_pc.c). COFF: grouped section between markers.

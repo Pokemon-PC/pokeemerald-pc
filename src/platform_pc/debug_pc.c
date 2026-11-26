@@ -4,6 +4,7 @@
  * as addresses that src/platform_pc/scripts/symbolize.py turns into names
  * (lines formatted like backtrace frames: "#NN 0x...").
  */
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -68,7 +69,84 @@ static void trace(unsigned long long frame) {
     }
 }
 
+/* ---- « Jouer d'ici » (plateforme : atelier) ------------------------------
+ * PEM_JOUER_ICI="groupe.numero:x:y" : dès le démarrage, saute l'intro, le
+ * titre et le discours du professeur, et commence une nouvelle partie à cette
+ * case (nom du joueur « TEST »). PEM_EQUIPE="espece:niveau,..." (numéros) :
+ * équipe donnée dès que le joueur peut bouger. Outil de test : ne touche pas
+ * à la sauvegarde tant que le joueur ne sauvegarde pas lui-même. */
+#include "overworld.h"
+#include "m4a.h"
+#include "palette.h"
+#include "sprite.h"
+
+static int s_ici_group = -1, s_ici_num, s_ici_x, s_ici_y;
+
+static void jouer_ici_lire(void) {
+    static int lu;
+    if (lu) {
+        return;
+    }
+    lu = 1;
+    const char *e = getenv("PEM_JOUER_ICI");
+    if (e && sscanf(e, "%d.%d:%d:%d", &s_ici_group, &s_ici_num, &s_ici_x, &s_ici_y) != 4) {
+        pc_warn("PEM_JOUER_ICI: attendu groupe.numero:x:y, reçu '%s'", e);
+        s_ici_group = -1;
+    }
+}
+
+/* Appelé par NewGameInitData (src/new_game.c, PLATFORM_PC) à la place du camion. */
+bool8 PcTest_NewGameWarp(void) {
+    jouer_ici_lire();
+    if (s_ici_group < 0) {
+        return FALSE;
+    }
+    SetWarpDestination(s_ici_group, s_ici_num, WARP_ID_NONE, s_ici_x, s_ici_y);
+    WarpIntoMap();
+    pc_log("jouer ici : carte %d.%d case %d,%d", s_ici_group, s_ici_num, s_ici_x, s_ici_y);
+    return TRUE;
+}
+
+static void jouer_ici_frame(unsigned long long frame) {
+    static int etat;   /* 0 attendre, 1 partie lancée, 2 équipe donnée */
+    jouer_ici_lire();
+    if (s_ici_group < 0 || etat == 2) {
+        return;
+    }
+    /* attendre que le jeu ait placé les blocs de sauvegarde (écran de copyright) */
+    if (etat == 0 && frame >= 60 && gSaveBlock1Ptr != NULL && gSaveBlock2Ptr != NULL) {
+        /* quitter l'intro proprement, puis la même entrée que « Nouvelle partie » */
+        static const u8 kTest[] = {0xCE, 0xBF, 0xCD, 0xCE, 0xFF};   /* « TEST » */
+        ResetTasks();
+        ResetSpriteData();
+        FreeAllSpritePalettes();
+        m4aMPlayAllStop();
+        memcpy(gSaveBlock2Ptr->playerName, kTest, sizeof kTest);
+        gSaveBlock2Ptr->playerGender = MALE;
+        SetMainCallback2(CB2_NewGame);
+        etat = 1;
+        return;
+    }
+    if (etat == 1 && player_free_in_overworld()) {
+        const char *e = getenv("PEM_EQUIPE");
+        if (e) {
+            char *s = strdup(e);
+            for (char *tok = strtok(s, ","); tok; tok = strtok(NULL, ",")) {
+                int sp = 0, lv = 5;
+                if (sscanf(tok, "%d:%d", &sp, &lv) >= 1 && sp > 0) {
+                    ScriptGiveMon(sp, lv, ITEM_NONE, 0, 0, 0);
+                }
+            }
+            free(s);
+            FlagSet(FLAG_SYS_POKEMON_GET);
+        }
+        pc_log("jouer ici : prêt à l'image %llu", frame);
+        etat = 2;
+    }
+}
+
 void pc_debug_frame(unsigned long long frame) {
+    jouer_ici_frame(frame);
     static int tracing = -1;
     if (tracing < 0) {
         const char *t = getenv("PEM_TRACE");

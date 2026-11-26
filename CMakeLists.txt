@@ -19,6 +19,18 @@ endif()
 
 include(cmake/PemSDL2.cmake)
 
+# Fan games built by the plateforme tool (plateforme/outils/fangame) from a
+# copy of this tree: PEM_FANGAME adds the generated src/fangame_data.c hooks
+# (start position, project texts in every language), PEM_WINDOW_TITLE names
+# the window, PEM_TOOLS_ROOT points at the tree whose tools/ are built.
+option(PEM_FANGAME "Build a fan game from a plateforme project" OFF)
+set(PEM_WINDOW_TITLE "Pokemon Emerald" CACHE STRING "Window title")
+set(PEM_TOOLS_ROOT "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "Tree whose tools/ (preproc...) are built")
+add_compile_definitions("PEM_WINDOW_TITLE=\"${PEM_WINDOW_TITLE}\"")
+if(PEM_FANGAME)
+    add_compile_definitions(PEM_FANGAME=1)
+endif()
+
 set(PEM_PC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/platform_pc)
 
 # --- low-address executables (same rationale as the HeartGold port) -------

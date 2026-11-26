@@ -50,6 +50,13 @@ extern const u8 EventScript_ResetAllMapFlags[];
 
 static void ClearFrontierRecord(void);
 static void WarpToTruck(void);
+#ifdef PLATFORM_PC
+bool8 PcTest_NewGameWarp(void);
+#ifdef PEM_FANGAME
+bool8 PcFangame_NewGameWarp(void);
+void PcFangame_NewGameState(void);
+#endif
+#endif
 static void ResetMiniGamesRecords(void);
 
 EWRAM_DATA bool8 gDifferentSaveFile = FALSE;
@@ -192,8 +199,22 @@ void NewGameInitData(void)
     InitDewfordTrend();
     ResetFanClub();
     ResetLotteryCorner();
+#ifdef PLATFORM_PC
+    // Test hook « jouer ici » (PEM_JOUER_ICI, src/platform_pc/debug_pc.c),
+    // then a fan game's own start (generated src/fangame_data.c), otherwise
+    // the original truck intro.
+    if (!PcTest_NewGameWarp())
+#ifdef PEM_FANGAME
+    if (!PcFangame_NewGameWarp())
+#endif
+#endif
     WarpToTruck();
     RunScriptImmediately(EventScript_ResetAllMapFlags);
+#ifdef PLATFORM_PC
+#ifdef PEM_FANGAME
+    PcFangame_NewGameState();
+#endif
+#endif
     ResetMiniGamesRecords();
     InitUnionRoomChatRegisteredTexts();
     InitLilycoveLady();

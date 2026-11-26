@@ -236,10 +236,20 @@ static uint16_t scripted_input(uint64_t frame) {
 }
 
 /* ---- entry ----------------------------------------------------------------- */
+#ifdef PEM_FANGAME
+/* Fan game (generated src/fangame_data.c): names of the items/Pokémon the
+ * project ADDS, written after the French tables of the ROM (which would
+ * otherwise put back the names of the empty slots they use). */
+void PcFangame_AfterLanguage(void);
+#endif
+
 static void run_game(void *arg) {
     (void)arg;
     pc_crash_install();
     pc_lang_apply();          /* French strings, before the snapshot */
+#ifdef PEM_FANGAME
+    PcFangame_AfterLanguage();
+#endif
     snapshot_game_data();
     if (setjmp(s_reset_jump) != 0) {
         memcpy(GAME_DATA_BEGIN, s_snapshot, s_snapshot_size);

@@ -231,11 +231,26 @@ void pc_lang_make_writable(const void *p, size_t n) {
 
 void pc_lang_tables_apply(const uint8_t *rom);   /* lang_tables_pc.c */
 
+#ifdef PEM_FANGAME
+/* Fan game (generated src/fangame_data.c): the project's own texts exist in
+ * every language of the project, without any ROM. Returns the language used. */
+const char *PcFangame_ApplyLanguage(const char *want);
+#endif
+
 void pc_lang_apply(void) {
     const char *want = getenv("PEM_LANG");
     if (want == NULL || *want == '\0') {
         want = pc_config_get("game", "language", "auto");
     }
+#ifdef PEM_FANGAME
+    {
+        const char *proj = PcFangame_ApplyLanguage(want);
+        pc_log("lang: project texts in '%s'", proj);
+        if (SDL_strcasecmp(want, "auto") == 0) {
+            want = proj;   /* the project's default language decides for the rest */
+        }
+    }
+#endif
     if (SDL_strcasecmp(want, "en") == 0) {
         pc_log("lang: English");
         return;

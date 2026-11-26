@@ -6,6 +6,10 @@
  * Any SDL game controller works too (Nintendo layout).
  * PEM_HEADLESS=1: no window (tests). PEM_SCALE=n: window size.
  */
+/* Window title: a fan game built from this engine sets its own (CMake PEM_WINDOW_TITLE). */
+#ifndef PEM_WINDOW_TITLE
+#define PEM_WINDOW_TITLE "Pokemon Emerald"
+#endif
 #include "pc_hal.h"
 
 #include "hw_pc.h"
@@ -85,7 +89,7 @@ bool pc_video_init(void) {
         scale = 1;
     }
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
-    s_win = SDL_CreateWindow("Pokemon Emerald", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+    s_win = SDL_CreateWindow(PEM_WINDOW_TITLE, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                              PC_GBA_WIDTH * scale, PC_GBA_HEIGHT * scale, SDL_WINDOW_RESIZABLE);
     if (!s_win) {
         pc_warn("SDL_CreateWindow: %s", SDL_GetError());
